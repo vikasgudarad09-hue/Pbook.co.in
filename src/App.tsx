@@ -19,12 +19,11 @@ const DEFAULT_POLL_DATA: PollData = {
   questions: [
     {
       id: "q1",
-      text: "Which one is good?",
+      text: "ಧಾರವಾಡ ಗ್ರಾಮೀಣ ಉಪಚುನಾವಣೆಗೆ ಬಿಜೆಪಿ ಅಭ್ಯರ್ಥಿ ಯಾರು ಆಗಬೇಕು?",
       candidates: [
-        { id: "c1", name: "Name 1", photoUrl: "", colorTheme: "blue", votes: 0 },
-        { id: "c2", name: "Name 2", photoUrl: "", colorTheme: "green", votes: 0 },
-        { id: "c3", name: "Name 3", photoUrl: "", colorTheme: "orange", votes: 0 },
-        { id: "c4", name: "Name 4", photoUrl: "", colorTheme: "purple", votes: 0 },
+        { id: "c1", name: "ಅಮೃತ ದೇಸಾಯಿ", photoUrl: "", colorTheme: "blue", votes: 0 },
+        { id: "c2", name: "ಮಂಜುನಾಥ ಮಕ್ಕಳಗೇರಿ", photoUrl: "", colorTheme: "green", votes: 0 },
+        { id: "c3", name: "ಸೀಮಾ ಮಸೂತಿ", photoUrl: "", colorTheme: "orange", votes: 0 },
       ]
     }
   ],
@@ -684,10 +683,10 @@ export default function App() {
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                   </svg>
-                                  Verifying...
+                                  ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ...
                                 </>
                               ) : (
-                                "Submit Vote"
+                                "ಮತ ಸಲ್ಲಿಸಿ"
                               )}
                             </motion.button>
                           </motion.div>
@@ -772,7 +771,7 @@ export default function App() {
                       className="w-full bg-white hover:bg-zinc-50 text-zinc-800 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all duration-300 shadow-sm ring-1 ring-zinc-200 hover:ring-zinc-300"
                     >
                       <BarChart2 className="w-5 h-5" />
-                      View All Results
+                      ಎಲ್ಲಾ ಫಲಿತಾಂಶಗಳನ್ನು ವೀಕ್ಷಿಸಿ
                     </button>
                   )}
                   
