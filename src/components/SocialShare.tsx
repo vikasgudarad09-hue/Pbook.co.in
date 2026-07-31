@@ -40,7 +40,7 @@ export function SocialShare({ url, title }: { url: string; title: string }) {
   return (
     <div className="flex flex-col gap-3 mt-2 w-full">
       <div className="flex justify-between items-center px-1 mb-1">
-        <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">Share this poll</h3>
+        <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">ಈ ಪೋಲ್ ಅನ್ನು ಹಂಚಿಕೊಳ್ಳಿ</h3>
       </div>
       <div className="flex gap-2">
         {shareLinks.map((link) => (
@@ -64,7 +64,7 @@ export function SocialShare({ url, title }: { url: string; title: string }) {
         </button>
       </div>
       {copied && (
-        <p className="text-xs text-center text-green-600 font-medium">Link copied to clipboard!</p>
+        <p className="text-xs text-center text-green-600 font-medium">ಲಿಂಕ್ ಕಾಪಿ ಮಾಡಲಾಗಿದೆ!</p>
       )}
     </div>
   );
