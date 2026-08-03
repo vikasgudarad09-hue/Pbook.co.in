@@ -647,7 +647,7 @@ export default function App() {
                                   <div className={`w-5 h-5 md:w-7 md:h-7 rounded-full flex items-center justify-center shrink-0 transition-colors duration-300 ${isSelected ? 'bg-[#1877F2] text-white' : 'bg-zinc-100 text-transparent group-hover:bg-zinc-200'}`}>
                                     <Check className="w-3 h-3 md:w-4 md:h-4" />
                                   </div>
-                                  {c.photoUrl ? (
+                                  {c.photoUrl && (
                                      <div className="relative shrink-0 overflow-hidden rounded-xl border border-zinc-100 shadow-sm">
                                        <LazyImage src={c.photoUrl} className="w-10 h-10 md:w-14 md:h-14 object-cover transition-transform duration-500 group-hover:scale-110" alt={c.name} />
                                        <button
@@ -657,10 +657,6 @@ export default function App() {
                                        >
                                          <Maximize className="w-4 h-4 md:w-5 md:h-5" />
                                        </button>
-                                     </div>
-                                  ) : (
-                                     <div className="shrink-0 w-10 h-10 md:w-14 md:h-14 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-300 border border-zinc-200 shadow-sm transition-colors group-hover:bg-zinc-100">
-                                       <User className="w-5 h-5 md:w-7 md:h-7" />
                                      </div>
                                   )}
                                   <span className={`font-medium text-base md:text-lg transition-colors ${isSelected ? 'text-[#1C1E21]' : 'text-zinc-700'}`}>
@@ -712,12 +708,8 @@ export default function App() {
                                 >
                                   <div className="flex justify-between items-center text-xs md:text-sm font-semibold text-zinc-700 relative z-10">
                                     <span className="flex items-center gap-2 md:gap-3">
-                                       {c.photoUrl ? (
+                                       {c.photoUrl && (
                                          <LazyImage src={c.photoUrl} className="w-8 h-8 md:w-12 md:h-12 object-cover rounded-xl shadow-sm border border-zinc-100" alt={c.name} />
-                                       ) : (
-                                         <div className="w-8 h-8 md:w-12 md:h-12 bg-zinc-100 rounded-xl flex items-center justify-center text-zinc-400 border border-zinc-200 shadow-sm">
-                                           <User className="w-4 h-4 md:w-6 md:h-6" />
-                                         </div>
                                        )}
                                        <span className="text-base md:text-lg text-[#1C1E21]">{c.name}</span>
                                     </span>
