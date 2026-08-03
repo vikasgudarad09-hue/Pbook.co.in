@@ -41,15 +41,7 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
     height
   );
 
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        console.error('Canvas is empty');
-        return;
-      }
-      resolve(URL.createObjectURL(blob));
-    }, 'image/jpeg', 0.9);
-  });
+  return canvas.toDataURL('image/jpeg', 0.8);
 };
   const [form, setForm] = useState<PollData>(() => {
     if (data.questions) return data;
