@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
 import { User, Settings, History, X, Download, LogOut, ChevronDown, Plus, Trash2, HelpCircle, Megaphone } from 'lucide-react';
 import Cropper from 'react-easy-crop';
-import { db } from './firebase';
+import { db, storage } from './firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { PollData } from './types';
 
 export default function AdminPanel({ data, onSave, onLogout, onResetData }: { data: PollData, onSave: (d: PollData) => void, onLogout: () => void, onResetData: () => Promise<void> }) {
@@ -77,18 +78,25 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
   const handleCropDone = async () => {
     try {
       if (!cropImageSrc || !croppedAreaPixels) return;
+      setIsSaving(true);
       const croppedImage = await getCroppedImg(cropImageSrc, croppedAreaPixels);
       
-      const newRecent = [croppedImage, ...(form.recentPhotos || []).filter(p => p !== croppedImage)].slice(0, 3);
+      const storageRef = ref(storage, `images/${Date.now()}_${Math.random().toString(36).substring(2, 9)}.jpg`);
+      await uploadString(storageRef, croppedImage, 'data_url');
+      const downloadUrl = await getDownloadURL(storageRef);
+      
+      const newRecent = [downloadUrl, ...(form.recentPhotos || []).filter(p => p !== downloadUrl)].slice(0, 3);
       setForm(prev => ({...prev, recentPhotos: newRecent}));
       
-      if (cropCallback) cropCallback(croppedImage);
+      if (cropCallback) cropCallback(downloadUrl);
       
       setCropImageSrc(null);
       setCropCallback(null);
     } catch (e) {
       console.error(e);
-      alert('Error cropping image');
+      alert('Error uploading image');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -335,7 +343,7 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
                    
                    <div className="shrink-0 flex flex-col items-center gap-3 w-full sm:w-28">
                       <div className="w-full flex justify-center">
-                        {c.photoUrl ? (
+                        {c.photoUrl?.trim() ? (
                           <img src={c.photoUrl} className="w-24 h-24 object-cover rounded-xl shadow-sm border border-zinc-200" alt={c.name} />
                         ) : (
                           <div className="w-24 h-24 bg-white border border-zinc-200 rounded-xl flex items-center justify-center text-zinc-300 shadow-sm">
