@@ -22,7 +22,7 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
     throw new Error('No 2d context');
   }
 
-  const TARGET_SIZE = 400;
+  const TARGET_SIZE = 250;
   const scale = Math.min(TARGET_SIZE / pixelCrop.width, TARGET_SIZE / pixelCrop.height, 1);
   const width = pixelCrop.width * scale;
   const height = pixelCrop.height * scale;
@@ -42,7 +42,7 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
     height
   );
 
-  return canvas.toDataURL('image/jpeg', 0.8);
+  return canvas.toDataURL('image/jpeg', 0.7);
 };
   const [form, setForm] = useState<PollData>(() => {
     if (data.questions) return data;
@@ -167,17 +167,30 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
       const newHistory = [historyEntry, ...(form.history || [])].slice(0, 5);
       const dataToSave = { ...form, history: newHistory };
 
-      onSave(dataToSave); // Optimistically save immediately
-      setIsSaving(false);
+      onSave(dataToSave); // Optimistically update local state
 
       try {
+        // Save to local/Railway Express backend REST API
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        await fetch(`${apiUrl}/api/poll`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dataToSave)
+        }).catch(err => console.warn('REST API save error:', err));
+
         const pollRef = doc(db, 'polls', 'main_poll');
-        await setDoc(pollRef, dataToSave);
-      } catch (e) {
-        console.warn("Save failed, likely due to quota limit.", e);
+        await setDoc(pollRef, dataToSave).catch(err => console.warn('Firestore setDoc failed:', err));
+
+        alert('Poll published successfully!');
+      } catch (e: any) {
+        console.error("Save failed:", e);
+        alert(`Failed to save: ${e?.message || 'Unknown error'}. Please try again.`);
       }
-    } catch (e) {
-      console.warn("History parse error", e);
+    } catch (e: any) {
+      console.error("History parse error", e);
+      alert('Error formatting poll data for saving.');
+    } finally {
+      setIsSaving(false);
     }
   };
 

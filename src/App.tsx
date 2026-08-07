@@ -204,12 +204,25 @@ export default function App() {
   }, [isAdmin]);
 
   useEffect(() => {
+    let isLoaded = false;
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+
+    // Fetch from REST API (Express / Railway)
+    fetch(`${apiUrl}/api/poll`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && (data.questions || data.question)) {
+          isLoaded = true;
+          setPollData(data as PollData);
+        }
+      })
+      .catch(err => console.warn('Express REST API fetch warning:', err));
+
     const pollRef = doc(db, 'polls', 'main_poll');
     
-    let isLoaded = false;
     const timeoutId = setTimeout(() => {
       if (!isLoaded) {
-        console.warn("Firebase took too long to load. Using fallback data.");
+        console.warn("Firebase/REST took too long to load. Using fallback data.");
         setPollData(prev => prev || DEFAULT_POLL_DATA);
       }
     }, 4000);
@@ -224,7 +237,7 @@ export default function App() {
       }
     }, (err) => {
       isLoaded = true;
-      console.warn("Firestore onSnapshot error (likely quota limit). Using current data.", err);
+      console.warn("Firestore onSnapshot error. Using current data.", err);
       setPollData(prev => prev || DEFAULT_POLL_DATA);
     });
 
@@ -323,6 +336,21 @@ export default function App() {
 
 
     try {
+      // Record vote on Express REST backend
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      fetch(`${apiUrl}/api/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId, candidateId })
+      })
+      .then(res => res.json())
+      .then(resData => {
+        if (resData && resData.data) {
+          setPollData(resData.data);
+        }
+      })
+      .catch(err => console.warn('REST API vote error:', err));
+
       const pollRef = doc(db, 'polls', 'main_poll');
       const ipRef = doc(db, 'polls', `main_poll/ip_records/${questionId}_${userIp}`);
 
