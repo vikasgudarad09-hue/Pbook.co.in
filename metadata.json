@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "pBOOK Poll Application",
+  "description": "An interactive online polling application with real-time voting, candidate options, ads, and admin management.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

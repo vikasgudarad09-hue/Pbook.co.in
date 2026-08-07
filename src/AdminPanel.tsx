@@ -81,20 +81,28 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
       setIsSaving(true);
       const croppedImage = await getCroppedImg(cropImageSrc, croppedAreaPixels);
       
-      const storageRef = ref(storage, `images/${Date.now()}_${Math.random().toString(36).substring(2, 9)}.jpg`);
-      await uploadString(storageRef, croppedImage, 'data_url');
-      const downloadUrl = await getDownloadURL(storageRef);
+      let finalImageUrl = croppedImage;
+
+      try {
+        if (storage && import.meta.env.VITE_FIREBASE_STORAGE_BUCKET) {
+          const storageRef = ref(storage, `images/${Date.now()}_${Math.random().toString(36).substring(2, 9)}.jpg`);
+          await uploadString(storageRef, croppedImage, 'data_url');
+          finalImageUrl = await getDownloadURL(storageRef);
+        }
+      } catch (storageErr) {
+        console.warn('Firebase Storage upload failed or timed out, falling back to cropped data URL:', storageErr);
+      }
       
-      const newRecent = [downloadUrl, ...(form.recentPhotos || []).filter(p => p !== downloadUrl)].slice(0, 3);
+      const newRecent = [finalImageUrl, ...(form.recentPhotos || []).filter(p => p !== finalImageUrl)].slice(0, 3);
       setForm(prev => ({...prev, recentPhotos: newRecent}));
       
-      if (cropCallback) cropCallback(downloadUrl);
+      if (cropCallback) cropCallback(finalImageUrl);
       
       setCropImageSrc(null);
       setCropCallback(null);
     } catch (e) {
       console.error(e);
-      alert('Error uploading image');
+      alert('Error processing image');
     } finally {
       setIsSaving(false);
     }
