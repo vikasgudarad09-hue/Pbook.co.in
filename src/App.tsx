@@ -89,6 +89,9 @@ function AdsterraNativeBanner({ className = "" }: { className?: string }) {
     script.src = 'https://pl30825247.effectivecpmnetwork.com/cde1c28640b954e72a9619c23e223fa9/invoke.js';
     script.async = true;
     script.setAttribute('data-cfasync', 'false');
+    script.onerror = () => {
+      console.warn('Sponsored ad network script blocked or failed to load.');
+    };
     container.appendChild(script);
   }, []);
 
