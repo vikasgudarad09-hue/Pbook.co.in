@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { User, Settings, History, X, Download, LogOut, ChevronDown, Plus, Trash2, HelpCircle, Megaphone } from 'lucide-react';
+import { User, Settings, History, X, Download, LogOut, ChevronDown, Plus, Trash2, HelpCircle, Megaphone, RotateCcw, RotateCw, UploadCloud, Link as LinkIcon, Crop } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 import { db, storage } from './firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -7,43 +7,69 @@ import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 import { PollData } from './types';
 
 export default function AdminPanel({ data, onSave, onLogout, onResetData }: { data: PollData, onSave: (d: PollData) => void, onLogout: () => void, onResetData: () => Promise<void> }) {
-const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> => {
+const getCroppedImg = async (imageSrc: string, pixelCrop: any, rotation = 0): Promise<string> => {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = 'anonymous';
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = imageSrc;
   });
 
+  const rotRad = (rotation * Math.PI) / 180;
+
+  // Calculate bounding box of rotated image
+  const bBoxWidth = Math.abs(Math.cos(rotRad) * image.width) + Math.abs(Math.sin(rotRad) * image.height);
+  const bBoxHeight = Math.abs(Math.sin(rotRad) * image.width) + Math.abs(Math.cos(rotRad) * image.height);
+
+  const tempCanvas = document.createElement('canvas');
+  const tempCtx = tempCanvas.getContext('2d');
+  if (!tempCtx) throw new Error('No temp 2d context');
+
+  tempCanvas.width = bBoxWidth;
+  tempCanvas.height = bBoxHeight;
+
+  tempCtx.translate(bBoxWidth / 2, bBoxHeight / 2);
+  tempCtx.rotate(rotRad);
+  tempCtx.translate(-image.width / 2, -image.height / 2);
+  tempCtx.drawImage(image, 0, 0);
+
+  // High-DPI crisp output: 500 max dimension for square, proportional for rectangle
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('No 2d context');
 
-  if (!ctx) {
-    throw new Error('No 2d context');
+  const MAX_DIM = 500;
+  const cropAspect = (pixelCrop.width || 1) / (pixelCrop.height || 1);
+  let targetW = MAX_DIM;
+  let targetH = Math.round(MAX_DIM / cropAspect);
+
+  if (cropAspect < 1) {
+    targetH = MAX_DIM;
+    targetW = Math.round(MAX_DIM * cropAspect);
   }
 
-  const TARGET_SIZE = 250;
-  const scale = Math.min(TARGET_SIZE / pixelCrop.width, TARGET_SIZE / pixelCrop.height, 1);
-  const width = pixelCrop.width * scale;
-  const height = pixelCrop.height * scale;
+  canvas.width = Math.max(targetW, 10);
+  canvas.height = Math.max(targetH, 10);
 
-  canvas.width = width;
-  canvas.height = height;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   ctx.drawImage(
-    image,
+    tempCanvas,
     pixelCrop.x,
     pixelCrop.y,
     pixelCrop.width,
     pixelCrop.height,
     0,
     0,
-    width,
-    height
+    canvas.width,
+    canvas.height
   );
 
-  return canvas.toDataURL('image/jpeg', 0.7);
+  return canvas.toDataURL('image/jpeg', 0.85);
 };
+
   const [form, setForm] = useState<PollData>(() => {
     if (data.questions) return data;
     return {
@@ -57,16 +83,28 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [aspect, setAspect] = useState<number>(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
   const [cropCallback, setCropCallback] = useState<((url: string) => void) | null>(null);
 
-  const handleImageUpload = (file: File, callback: (url: string) => void) => {
+  // Direct URL state modal
+  const [urlInputModal, setUrlInputModal] = useState<{ open: boolean; callback: ((url: string) => void) | null }>({ open: false, callback: null });
+  const [urlInputValue, setUrlInputValue] = useState('');
+
+  const handleImageUpload = (file: File, callback: (url: string) => void, defaultAspect = 1) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a valid image file');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (e) => {
       setCropImageSrc(e.target?.result as string);
       setCropCallback(() => callback);
       setCrop({ x: 0, y: 0 });
       setZoom(1);
+      setRotation(0);
+      setAspect(defaultAspect);
     };
     reader.readAsDataURL(file);
   };
@@ -79,7 +117,7 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
     try {
       if (!cropImageSrc || !croppedAreaPixels) return;
       setIsSaving(true);
-      const croppedImage = await getCroppedImg(cropImageSrc, croppedAreaPixels);
+      const croppedImage = await getCroppedImg(cropImageSrc, croppedAreaPixels, rotation);
       
       let finalImageUrl = croppedImage;
 
@@ -93,7 +131,7 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
         console.warn('Firebase Storage upload failed or timed out, falling back to cropped data URL:', storageErr);
       }
       
-      const newRecent = [finalImageUrl, ...(form.recentPhotos || []).filter(p => p !== finalImageUrl)].slice(0, 3);
+      const newRecent = [finalImageUrl, ...(form.recentPhotos || []).filter(p => p !== finalImageUrl)].slice(0, 6);
       setForm(prev => ({...prev, recentPhotos: newRecent}));
       
       if (cropCallback) cropCallback(finalImageUrl);
@@ -113,33 +151,82 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
     setCropCallback(null);
   };
 
-  const renderPhotoPicker = (currentUrl: string, callback: (url: string) => void) => (
+  const renderPhotoPicker = (currentUrl: string, callback: (url: string) => void, defaultAspect = 1) => (
     <div className="flex flex-col gap-2 w-full mt-2">
-      <div className="flex items-center justify-center gap-2 flex-wrap">
-        <label className="text-[10px] font-bold uppercase tracking-wider bg-zinc-900 text-white px-3 py-2 rounded-lg cursor-pointer hover:bg-zinc-800 transition shadow-sm w-full text-center">
-           Upload Image
-           <input type="file" className="hidden" accept="image/*" onChange={(e) => {
-             if(e.target.files?.[0]) {
-               handleImageUpload(e.target.files[0], callback);
-             }
-           }} />
-        </label>
-        {currentUrl && (
-          <button onClick={() => callback('')} className="text-red-500 hover:text-red-600 hover:bg-red-50 w-full text-[10px] font-bold py-1.5 rounded-lg transition-colors uppercase tracking-wider">Remove Image</button>
-        )}
+      <div 
+        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (e.dataTransfer.files?.[0]) {
+            handleImageUpload(e.dataTransfer.files[0], callback, defaultAspect);
+          }
+        }}
+        className="border-2 border-dashed border-zinc-300 hover:border-[#1877F2] p-3 rounded-xl bg-zinc-50/80 transition-colors flex flex-col items-center justify-center gap-1.5 cursor-pointer group"
+      >
+        <div className="flex items-center gap-2">
+          <UploadCloud className="w-4 h-4 text-zinc-400 group-hover:text-[#1877F2] transition-colors" />
+          <span className="text-[11px] font-bold text-zinc-600 group-hover:text-[#1877F2] transition-colors">
+            Drop image or click to upload
+          </span>
+        </div>
+        <input 
+          type="file" 
+          className="hidden" 
+          accept="image/*" 
+          id={`file-input-${Math.random()}`}
+          onChange={(e) => {
+            if(e.target.files?.[0]) {
+              handleImageUpload(e.target.files[0], callback, defaultAspect);
+            }
+          }} 
+        />
+        <div className="flex items-center gap-2 mt-1">
+          <label 
+            onClick={(e) => {
+              e.stopPropagation();
+              const input = (e.currentTarget.parentElement?.previousElementSibling as HTMLInputElement);
+              input?.click();
+            }}
+            className="text-[10px] font-bold uppercase tracking-wider bg-zinc-900 text-white px-2.5 py-1 rounded-md cursor-pointer hover:bg-zinc-800 transition"
+          >
+            Browse
+          </label>
+          <button 
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setUrlInputValue(currentUrl || '');
+              setUrlInputModal({ open: true, callback });
+            }}
+            className="text-[10px] font-bold uppercase tracking-wider bg-zinc-200 text-zinc-700 px-2.5 py-1 rounded-md hover:bg-zinc-300 transition flex items-center gap-1"
+          >
+            <LinkIcon className="w-3 h-3" /> Paste URL
+          </button>
+          {currentUrl && (
+            <button 
+              type="button"
+              onClick={(e) => { e.stopPropagation(); callback(''); }} 
+              className="text-red-500 hover:text-red-600 hover:bg-red-50 text-[10px] font-bold py-1 px-2 rounded-md transition-colors uppercase tracking-wider"
+            >
+              Remove
+            </button>
+          )}
+        </div>
       </div>
+
       {(form.recentPhotos && form.recentPhotos.length > 0) && (
-        <div className="mt-1 bg-zinc-100/50 p-2 rounded-lg border border-zinc-200">
-          <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-2">Recent Images</p>
+        <div className="mt-1 bg-zinc-100/60 p-2 rounded-xl border border-zinc-200/80">
+          <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-1.5">Recent Photos</p>
           <div className="flex gap-2 overflow-x-auto pb-1 max-w-full" style={{ scrollbarWidth: 'none' }}>
             {form.recentPhotos.map((url, idx) => (
                <img 
                  key={idx} 
                  src={url} 
-                 className={`w-10 h-10 min-w-[40px] object-cover rounded-md cursor-pointer border-2 transition-colors ${currentUrl === url ? 'border-blue-500' : 'border-transparent hover:border-slate-300'}`}
+                 className={`w-10 h-10 min-w-[40px] object-cover rounded-lg cursor-pointer border-2 transition-all hover:scale-105 ${currentUrl === url ? 'border-[#1877F2] ring-2 ring-[#1877F2]/30' : 'border-transparent hover:border-zinc-300'}`}
                  onClick={() => callback(url)}
                  alt={`recent-${idx}`}
-                 title="Click to use this recent image"
+                 title="Click to select this image"
                />
             ))}
           </div>
@@ -197,46 +284,192 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any): Promise<string> 
   return (
     <div className="w-full max-w-3xl bg-white min-h-[100dvh] sm:min-h-[90vh] shadow-2xl p-6 md:p-10 overflow-y-auto sm:my-8 sm:rounded-[2.5rem] ring-1 ring-black/5 relative">
       {cropImageSrc && (
-        <div className="fixed inset-0 z-[200] bg-black/90 flex flex-col items-center justify-center p-4">
-          <div className="relative w-full max-w-lg h-[60vh] bg-black rounded-2xl overflow-hidden mb-6">
+        <div className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-4">
+          <div className="relative w-full max-w-xl h-[55vh] bg-zinc-900 rounded-3xl overflow-hidden mb-4 shadow-2xl border border-zinc-800">
             <Cropper
               image={cropImageSrc}
               crop={crop}
               zoom={zoom}
-              aspect={1}
+              rotation={rotation}
+              aspect={aspect}
               onCropChange={setCrop}
               onCropComplete={onCropComplete}
               onZoomChange={setZoom}
+              onRotationChange={setRotation}
             />
           </div>
-          <div className="w-full max-w-lg mb-6 flex items-center gap-4 text-white">
-            <span className="font-medium text-sm">Zoom</span>
-            <input
-              type="range"
-              value={zoom}
-              min={1}
-              max={3}
-              step={0.1}
-              aria-labelledby="Zoom"
-              onChange={(e) => {
-                setZoom(Number(e.target.value));
-              }}
-              className="w-full accent-blue-500"
-            />
+
+          {/* Cropper Controls Toolbar */}
+          <div className="w-full max-w-xl bg-zinc-900/90 border border-zinc-800 p-4 rounded-2xl mb-4 flex flex-col gap-3 text-white">
+            {/* Aspect Ratio & Rotation Row */}
+            <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+              <div className="flex items-center gap-1">
+                <span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px] mr-1">Aspect:</span>
+                <button 
+                  type="button" 
+                  onClick={() => setAspect(1)}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${aspect === 1 ? 'bg-[#1877F2] text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}
+                >
+                  1:1 Square
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setAspect(16 / 9)}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${aspect === 16 / 9 ? 'bg-[#1877F2] text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}
+                >
+                  16:9 Banner
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setAspect(4 / 3)}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all ${aspect === 4 / 3 ? 'bg-[#1877F2] text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'}`}
+                >
+                  4:3 Standard
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1 ml-auto">
+                <span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px] mr-1">Rotate:</span>
+                <button 
+                  type="button" 
+                  onClick={() => setRotation((r) => (r - 90 + 360) % 360)}
+                  className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg transition-colors flex items-center gap-1"
+                  title="Rotate 90 degrees counter-clockwise"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setRotation((r) => (r + 90) % 360)}
+                  className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg transition-colors flex items-center gap-1"
+                  title="Rotate 90 degrees clockwise"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Zoom Slider Row */}
+            <div className="flex items-center gap-3">
+              <span className="text-zinc-400 font-bold uppercase tracking-wider text-[10px] w-12">Zoom</span>
+              <input
+                type="range"
+                value={zoom}
+                min={1}
+                max={3}
+                step={0.05}
+                aria-label="Zoom level"
+                onChange={(e) => setZoom(Number(e.target.value))}
+                className="w-full accent-[#1877F2] h-1.5 bg-zinc-800 rounded-lg cursor-pointer"
+              />
+              <div className="flex gap-1 text-[10px]">
+                {[1, 1.5, 2, 2.5].map((z) => (
+                  <button
+                    key={z}
+                    type="button"
+                    onClick={() => setZoom(z)}
+                    className={`px-1.5 py-0.5 rounded font-mono font-bold ${zoom === z ? 'bg-[#1877F2] text-white' : 'bg-zinc-800 text-zinc-400'}`}
+                  >
+                    {z}x
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
+
           <div className="flex gap-4">
             <button
+              type="button"
               onClick={handleCropCancel}
               className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-bold rounded-xl transition-colors"
             >
               Cancel
             </button>
             <button
+              type="button"
               onClick={handleCropDone}
-              className="px-8 py-3 bg-[#1877F2] hover:bg-[#166FE5] text-white font-bold rounded-xl transition-colors shadow-lg"
+              disabled={isSaving}
+              className="px-8 py-3 bg-[#1877F2] hover:bg-[#166FE5] text-white font-bold rounded-xl transition-all shadow-lg flex items-center gap-2 disabled:opacity-50"
             >
-              Apply Crop
+              {isSaving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Crop className="w-4 h-4" /> Apply Crop
+                </>
+              )}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Direct URL Input Modal */}
+      {urlInputModal.open && (
+        <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-zinc-100 flex flex-col gap-4">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
+              <h3 className="font-bold text-zinc-900 flex items-center gap-2 text-base">
+                <LinkIcon className="w-4 h-4 text-[#1877F2]" /> Paste Image URL
+              </h3>
+              <button 
+                type="button"
+                onClick={() => setUrlInputModal({ open: false, callback: null })}
+                className="p-1 hover:bg-zinc-100 rounded-full text-zinc-400 hover:text-zinc-600 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-zinc-500 font-medium">
+              Enter a direct public web link to an image (e.g. https://example.com/photo.jpg).
+            </p>
+            <input 
+              type="url"
+              placeholder="https://..."
+              value={urlInputValue}
+              onChange={(e) => setUrlInputValue(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-sm focus:ring-2 focus:ring-[#1877F2] focus:border-transparent outline-none font-mono"
+            />
+            {urlInputValue && (
+              <div className="w-full h-32 bg-zinc-100 rounded-xl overflow-hidden flex items-center justify-center border border-zinc-200">
+                <img 
+                  src={urlInputValue} 
+                  alt="Preview" 
+                  className="max-w-full max-h-full object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            )}
+            <div className="flex gap-2 justify-end pt-2">
+              <button 
+                type="button"
+                onClick={() => setUrlInputModal({ open: false, callback: null })}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (urlInputModal.callback && urlInputValue.trim()) {
+                    urlInputModal.callback(urlInputValue.trim());
+                    // Add to recent
+                    setForm(prev => ({
+                      ...prev,
+                      recentPhotos: [urlInputValue.trim(), ...(prev.recentPhotos || []).filter(p => p !== urlInputValue.trim())].slice(0, 6)
+                    }));
+                  }
+                  setUrlInputModal({ open: false, callback: null });
+                }}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] transition shadow-md"
+              >
+                Use Image URL
+              </button>
+            </div>
           </div>
         </div>
       )}
