@@ -98,6 +98,20 @@ function recordVotedIp(ipKey: string) {
   }
 }
 
+// Service Worker & Verification files (Monetag, Google, etc.)
+app.get(['/sw.js', '/sw-11566473.js', '/service-worker.js'], (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  const swCode = `self.options = {
+    "domain": "5gvci.com",
+    "zoneId": 11566473
+}
+self.lary = ""
+importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')`;
+  res.send(swCode);
+});
+
 // API Routes
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', server: 'express-railway-ready', timestamp: new Date().toISOString() });
