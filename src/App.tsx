@@ -744,7 +744,7 @@ export default function App() {
                             className="flex flex-col gap-5"
                           >
                             <p className="text-xs font-bold uppercase tracking-wider text-zinc-400 -mb-2">Make a choice:</p>
-                            <div className="grid grid-cols-2 gap-3.5 sm:gap-5">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                               {q.candidates.map((c, i) => {
                                 const isSelected = selectedCandidate === c.id;
                                 return (
@@ -756,21 +756,25 @@ export default function App() {
                                     onClick={() => {
                                       setSelectedCandidates({ ...selectedCandidates, [q.id]: c.id });
                                     }}
-                                    className={`group relative flex flex-col rounded-2xl cursor-pointer overflow-hidden border-2 transition-all duration-300 ${isSelected ? 'border-[#1877F2] bg-white shadow-xl ring-4 ring-[#1877F2]/15 scale-[1.02]' : 'border-zinc-200/80 bg-white shadow-sm hover:border-zinc-300 hover:shadow-md'}`}
+                                    className={`group relative flex flex-col rounded-3xl cursor-pointer overflow-hidden border-2 transition-all duration-300 ${isSelected ? 'border-[#1877F2] bg-white shadow-2xl ring-4 ring-[#1877F2]/20 scale-[1.01]' : 'border-zinc-200 bg-white shadow-md hover:border-zinc-300 hover:shadow-xl'}`}
                                   >
-                                    <div className="relative w-full aspect-[4/3] bg-zinc-100 overflow-hidden shrink-0">
+                                    <div className="relative w-full h-52 sm:h-64 bg-zinc-100 overflow-hidden shrink-0">
                                       {c.photoUrl?.trim() ? (
-                                        <LazyImage src={c.photoUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={c.name} />
+                                        <>
+                                          <LazyImage src={c.photoUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={c.name} />
+                                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
+                                        </>
                                       ) : (
-                                        <div className="w-full h-full bg-gradient-to-br from-zinc-100 to-zinc-200 flex flex-col items-center justify-center text-zinc-400 gap-1 p-2">
-                                          <User className="w-10 h-10 stroke-[1.5]" />
+                                        <div className="w-full h-full bg-gradient-to-br from-zinc-100 to-zinc-200 flex flex-col items-center justify-center text-zinc-400 gap-2 p-4">
+                                          <User className="w-16 h-16 stroke-[1.5]" />
+                                          <span className="text-xs font-semibold text-zinc-400">No Image</span>
                                         </div>
                                       )}
 
                                       {c.photoUrl?.trim() && (
                                         <button
                                           onClick={(e) => { e.stopPropagation(); setFullScreenImage(c.photoUrl); }}
-                                          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-black/70 backdrop-blur-sm"
+                                          className="absolute top-3 right-3 p-2 rounded-full bg-black/60 text-white hover:bg-black/80 transition-all backdrop-blur-md shadow-lg"
                                           title="View Fullscreen"
                                         >
                                           <Maximize className="w-4 h-4" />
@@ -778,19 +782,24 @@ export default function App() {
                                       )}
 
                                       {isSelected && (
-                                        <div className="absolute top-2 left-2 px-2.5 py-1 rounded-full bg-[#1877F2] text-white text-xs font-extrabold shadow-md flex items-center gap-1">
-                                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                        <div className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-[#1877F2] text-white text-xs font-black shadow-lg flex items-center gap-1.5">
+                                          <Check className="w-4 h-4 stroke-[3]" />
+                                          <span>SELECTED</span>
                                         </div>
                                       )}
+
+                                      <div className="absolute bottom-3 left-3 right-3 text-white font-black text-lg sm:text-xl drop-shadow-md truncate">
+                                        {c.name}
+                                      </div>
                                     </div>
 
-                                    <div className={`p-3 sm:p-4 flex items-center gap-2.5 ${isSelected ? 'bg-blue-50/70' : 'bg-white'}`}>
-                                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border-2 transition-colors duration-300 ${isSelected ? 'border-[#1877F2] bg-[#1877F2] text-white' : 'border-zinc-300 bg-white group-hover:border-zinc-400'}`}>
-                                        {isSelected ? <Check className="w-3 h-3 stroke-[3]" /> : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />}
-                                      </div>
-                                      <span className={`font-bold text-sm sm:text-base md:text-lg transition-colors truncate ${isSelected ? 'text-[#1877F2]' : 'text-[#1C1E21]'}`}>
+                                    <div className={`p-4 flex items-center justify-between gap-3 ${isSelected ? 'bg-blue-50/80' : 'bg-white'}`}>
+                                      <span className={`font-bold text-base sm:text-lg transition-colors truncate ${isSelected ? 'text-[#1877F2]' : 'text-[#1C1E21]'}`}>
                                         {c.name}
                                       </span>
+                                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border-2 transition-all duration-300 ${isSelected ? 'border-[#1877F2] bg-[#1877F2] text-white shadow-md' : 'border-zinc-300 bg-white group-hover:border-zinc-400'}`}>
+                                        {isSelected ? <Check className="w-3.5 h-3.5 stroke-[3]" /> : <div className="w-2 h-2 rounded-full bg-transparent" />}
+                                      </div>
                                     </div>
                                   </motion.div>
                                 )
@@ -827,7 +836,7 @@ export default function App() {
                             transition={{ duration: 0.3 }}
                             className="flex flex-col gap-6"
                           >
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                               {q.candidates.map((c, i) => {
                                 const percentage = qTotalVotes > 0 ? Math.round((c.votes / qTotalVotes) * 100) : 0;
                                 return (
@@ -836,38 +845,42 @@ export default function App() {
                                     initial={{ opacity: 0, scale: 0.95 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     transition={{ delay: i * 0.1, type: "spring", stiffness: 100 }}
-                                    className="flex flex-col bg-white border border-zinc-200/90 rounded-2xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+                                    className="flex flex-col bg-white border border-zinc-200 rounded-3xl shadow-md hover:shadow-lg transition-shadow relative overflow-hidden"
                                   >
                                     {c.photoUrl?.trim() ? (
                                       <div 
                                         onClick={() => setFullScreenImage(c.photoUrl)} 
-                                        className="relative w-full aspect-[4/3] bg-zinc-100 overflow-hidden cursor-pointer group/photo shrink-0"
+                                        className="relative w-full h-52 sm:h-64 bg-zinc-100 overflow-hidden cursor-pointer group/photo shrink-0"
                                         title="Click to view fullscreen"
                                       >
                                         <LazyImage src={c.photoUrl} className="w-full h-full object-cover transition-transform duration-300 group-hover/photo:scale-105" alt={c.name} />
-                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center text-white">
-                                          <Maximize className="w-6 h-6" />
+                                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-80" />
+                                        <div className="absolute top-3 right-3 p-2 rounded-full bg-black/60 text-white backdrop-blur-md opacity-0 group-hover/photo:opacity-100 transition-opacity">
+                                          <Maximize className="w-4 h-4" />
                                         </div>
-                                        <div className="absolute top-2.5 right-2.5 bg-black/75 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs sm:text-sm font-black shadow-lg">
+                                        <div className="absolute top-3 left-3 bg-black/75 backdrop-blur-md text-white px-3.5 py-1 rounded-full text-sm font-black shadow-lg">
                                           {percentage}%
+                                        </div>
+                                        <div className="absolute bottom-3 left-3 right-3 text-white font-black text-lg sm:text-xl drop-shadow-md truncate">
+                                          {c.name}
                                         </div>
                                       </div>
                                     ) : (
-                                      <div className="w-full h-20 bg-gradient-to-br from-zinc-100 to-zinc-200 flex items-center justify-between px-4">
-                                        <User className="w-6 h-6 text-zinc-400" />
-                                        <div className="bg-zinc-800 text-white px-3 py-1 rounded-full text-xs font-black">
+                                      <div className="w-full h-24 bg-gradient-to-br from-zinc-100 to-zinc-200 flex items-center justify-between px-5">
+                                        <User className="w-8 h-8 text-zinc-400" />
+                                        <div className="bg-zinc-800 text-white px-3.5 py-1 rounded-full text-sm font-black">
                                           {percentage}%
                                         </div>
                                       </div>
                                     )}
 
-                                    <div className="p-3.5 sm:p-4 flex flex-col gap-2 relative z-10 flex-grow justify-between">
+                                    <div className="p-4 flex flex-col gap-2.5 relative z-10 flex-grow justify-between">
                                       <div className="flex justify-between items-center gap-2">
-                                        <span className="text-base sm:text-lg font-bold text-[#1C1E21] leading-tight truncate">{c.name}</span>
-                                        <span className="text-zinc-500 font-semibold text-xs shrink-0">{c.votes.toLocaleString()} {c.votes === 1 ? t.vote : t.votes}</span>
+                                        <span className="text-base sm:text-lg font-bold text-[#1C1E21] truncate">{c.name}</span>
+                                        <span className="text-zinc-500 font-bold text-xs shrink-0">{c.votes.toLocaleString()} {c.votes === 1 ? t.vote : t.votes}</span>
                                       </div>
 
-                                      <div className="w-full h-3 bg-zinc-100 rounded-full overflow-hidden shadow-inner mt-1 relative z-10">
+                                      <div className="w-full h-3.5 bg-zinc-100 rounded-full overflow-hidden shadow-inner relative z-10">
                                         <motion.div 
                                           className={`h-full ${THEMES[c.colorTheme || 'blue'].fill} rounded-full`}
                                           initial={{ width: 0 }}
