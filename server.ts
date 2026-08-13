@@ -74,9 +74,51 @@ function writePollData(data: any) {
   }
 }
 
+const VOTED_IPS_FILE = path.join(process.cwd(), 'voted_ips.json');
+
+function readVotedIps(): Record<string, boolean> {
+  try {
+    if (fs.existsSync(VOTED_IPS_FILE)) {
+      const content = fs.readFileSync(VOTED_IPS_FILE, 'utf-8');
+      return JSON.parse(content);
+    }
+  } catch (err) {
+    console.error('Error reading voted_ips.json:', err);
+  }
+  return {};
+}
+
+function recordVotedIp(ipKey: string) {
+  try {
+    const ips = readVotedIps();
+    ips[ipKey] = true;
+    fs.writeFileSync(VOTED_IPS_FILE, JSON.stringify(ips, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error writing voted_ips.json:', err);
+  }
+}
+
 // API Routes
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', server: 'express-railway-ready', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/ip', (req, res) => {
+  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+  const ip = Array.isArray(clientIp) ? clientIp[0] : String(clientIp).split(',')[0].trim();
+  res.json({ ip });
+});
+
+app.get('/api/check-voted', (req, res) => {
+  const { questionId, userIp } = req.query;
+  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+  const ip = (userIp as string) || (Array.isArray(clientIp) ? clientIp[0] : String(clientIp).split(',')[0].trim());
+  if (!questionId) {
+    return res.status(400).json({ error: 'Missing questionId' });
+  }
+  const ipKey = `${questionId}_${ip}`;
+  const votedIps = readVotedIps();
+  res.json({ voted: !!votedIps[ipKey] });
 });
 
 app.get('/api/poll', (req, res) => {
@@ -94,9 +136,18 @@ app.post('/api/poll', (req, res) => {
 });
 
 app.post('/api/vote', (req, res) => {
-  const { questionId, candidateId } = req.body;
+  const { questionId, candidateId, userIp } = req.body;
   if (!questionId || !candidateId) {
     return res.status(400).json({ error: 'Missing questionId or candidateId' });
+  }
+
+  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+  const ip = userIp || (Array.isArray(clientIp) ? clientIp[0] : String(clientIp).split(',')[0].trim());
+  const ipKey = `${questionId}_${ip}`;
+
+  const votedIps = readVotedIps();
+  if (votedIps[ipKey]) {
+    return res.status(403).json({ error: 'ALREADY_VOTED', message: 'A vote has already been submitted from this device/network.' });
   }
 
   const data = readPollData();
@@ -125,6 +176,7 @@ app.post('/api/vote', (req, res) => {
   }
 
   if (updated) {
+    recordVotedIp(ipKey);
     writePollData(data);
     res.json({ success: true, data });
   } else {
@@ -147,9 +199,24 @@ async function startServer() {
     });
   }
 
+  const PORT = Number(process.env.PORT) || 3000;
+  
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Primary server running on http://0.0.0.0:${PORT}`);
   });
+
+  // If process.env.PORT is specified and not 3000, also bind to 3000 as fallback for Railway target port mapping
+  if (process.env.PORT && Number(process.env.PORT) !== 3000) {
+    try {
+      const fallbackApp = express();
+      fallbackApp.use((req, res) => app(req, res));
+      fallbackApp.listen(3000, '0.0.0.0', () => {
+        console.log(`Fallback listener active on http://0.0.0.0:3000`);
+      });
+    } catch (err) {
+      console.log('Port 3000 fallback listen notice:', err);
+    }
+  }
 }
 
 startServer();

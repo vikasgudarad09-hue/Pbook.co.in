@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
-import { Menu, BarChart2, Share2, Phone, Megaphone, Clock, User, Check, Settings, History, Maximize, X, Download, LogOut, ChevronDown, Plus, Trash2, HelpCircle } from 'lucide-react';
+import { Menu, BarChart2, Share2, Phone, Megaphone, Clock, User, Check, Settings, History, Maximize, X, Download, LogOut, ChevronDown, Plus, Trash2, HelpCircle, Languages } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import confetti from 'canvas-confetti';
 import { PollData } from './types';
-import { db } from './firebase';
+import { db, isFirebaseConfigured } from './firebase';
 import { LazyImage } from './components/LazyImage';
 import { SocialShare } from './components/SocialShare';
+import { translations, languages, Language } from './translations';
 import { doc, onSnapshot, setDoc, updateDoc, increment, getDoc, getDocFromServer, runTransaction, collection, getDocs, deleteDoc } from 'firebase/firestore';
 
 const THEMES = {
@@ -49,36 +50,22 @@ const getFallbackIpHash = () => {
 };
 
 const fetchUserIpHash = async (): Promise<string> => {
-  const providers = [
-    'https://api.ipify.org?format=json',
-    'https://api64.ipify.org?format=json',
-    'https://api.seeip.org/jsonip',
-  ];
-
   try {
-    const fetchPromises = providers.map(async (url) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2000);
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (!response.ok) throw new Error('Network response was not ok');
+    const response = await fetch('/api/ip');
+    if (response.ok) {
       const data = await response.json();
-      const ip = data.ip || data.query;
-      if (!ip) throw new Error('No IP found');
-      return ip;
-    });
-
-    const ip = await Promise.any(fetchPromises);
-    
-    const encoder = new TextEncoder();
-    const ipData = encoder.encode(ip + "_salt_pbook");
-    const hashBuffer = await crypto.subtle.digest('SHA-256', ipData);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+      if (data.ip) {
+        const encoder = new TextEncoder();
+        const ipData = encoder.encode(data.ip + "_salt_pbook");
+        const hashBuffer = await crypto.subtle.digest('SHA-256', ipData);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 32);
+      }
+    }
   } catch (error) {
-    console.warn("Failed to fetch IP securely, using fallback", error);
-    return getFallbackIpHash();
+    // Fallback quietly if offline or local
   }
+  return getFallbackIpHash();
 };
 
 function GoogleAd({ className = "" }: { className?: string }) {
@@ -90,17 +77,17 @@ function GoogleAd({ className = "" }: { className?: string }) {
     
     const pushAd = () => {
       if (adPushed.current) return;
-      if (insRef.current && insRef.current.offsetWidth > 0) {
+      // Only push if window.adsbygoogle script is actually loaded and initialized
+      if (insRef.current && insRef.current.offsetWidth > 0 && typeof window !== 'undefined' && 'adsbygoogle' in window) {
         try {
           // @ts-ignore
           (window.adsbygoogle = window.adsbygoogle || []).push({});
           adPushed.current = true;
         } catch (e) {
-          // Ignore known adsense errors
+          // Ignore known adsense errors silently
         }
-      } else {
-        // Retry after a short delay if width is 0 (e.g., during animations)
-        timeoutId = window.setTimeout(pushAd, 200);
+      } else if (!adPushed.current) {
+        timeoutId = window.setTimeout(pushAd, 500);
       }
     };
 
@@ -168,6 +155,14 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(5);
   const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(null);
   const [confirmVoteData, setConfirmVoteData] = useState<{questionId: string, candidateId: string} | null>(null);
+  const [language, setLanguage] = useState<Language>(() => {
+    try {
+      return (localStorage.getItem('pbook_lang') as Language) || 'kn';
+    } catch {
+      return 'kn';
+    }
+  });
+  const t = translations[language] || translations.kn;
 
   // Backward compatibility for old data format
   const activePollData = pollData?.questions 
@@ -218,32 +213,37 @@ export default function App() {
       })
       .catch(err => console.warn('Express REST API fetch warning:', err));
 
-    const pollRef = doc(db, 'polls', 'main_poll');
-    
+    let unsubscribe: (() => void) | null = null;
+
+    if (isFirebaseConfigured && db) {
+      try {
+        const pollRef = doc(db, 'polls', 'main_poll');
+        unsubscribe = onSnapshot(pollRef, (snapshot) => {
+          isLoaded = true;
+          if (snapshot.exists()) {
+            setPollData(snapshot.data() as PollData);
+          } else {
+            setDoc(pollRef, DEFAULT_POLL_DATA).catch(() => {});
+            setPollData(DEFAULT_POLL_DATA);
+          }
+        }, () => {
+          isLoaded = true;
+          setPollData(prev => prev || DEFAULT_POLL_DATA);
+        });
+      } catch (e) {
+        // Fallback silently if Firestore is not configured in project
+      }
+    }
+
     const timeoutId = setTimeout(() => {
       if (!isLoaded) {
-        console.warn("Firebase/REST took too long to load. Using fallback data.");
         setPollData(prev => prev || DEFAULT_POLL_DATA);
       }
-    }, 4000);
-
-    const unsubscribe = onSnapshot(pollRef, (snapshot) => {
-      isLoaded = true;
-      if (snapshot.exists()) {
-        setPollData(snapshot.data() as PollData);
-      } else {
-        setDoc(pollRef, DEFAULT_POLL_DATA).catch(err => console.warn("Error setting default data", err));
-        setPollData(DEFAULT_POLL_DATA);
-      }
-    }, (err) => {
-      isLoaded = true;
-      console.warn("Firestore onSnapshot error. Using current data.", err);
-      setPollData(prev => prev || DEFAULT_POLL_DATA);
-    });
+    }, 3000);
 
     return () => {
       clearTimeout(timeoutId);
-      unsubscribe();
+      if (unsubscribe) unsubscribe();
     };
   }, []);
 
@@ -286,6 +286,59 @@ export default function App() {
     }
   }, [activePollData?.questions]);
 
+  // Sync voted status with Express and Firebase records to ensure clearing localStorage does not bypass IP limits
+  useEffect(() => {
+    if (!userIp || !activePollData?.questions) return;
+    let isSubscribed = true;
+
+    const syncVotedQuestions = async () => {
+      const currentVoted = { ...votedQuestions };
+      let hasChanges = false;
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+
+      for (const q of activePollData.questions) {
+        if (!currentVoted[q.id]) {
+          // 1. Check Express backend
+          try {
+            const res = await fetch(`${apiUrl}/api/check-voted?questionId=${q.id}&userIp=${userIp}`);
+            if (res.ok) {
+              const resData = await res.json();
+              if (resData && resData.voted) {
+                currentVoted[q.id] = true;
+                hasChanges = true;
+              }
+            }
+          } catch (err) {}
+
+          // 2. Check Firebase if configured
+          if (isFirebaseConfigured && db && !currentVoted[q.id]) {
+            try {
+              const ipDocRef = doc(db, 'polls', `main_poll/ip_records/${q.id}_${userIp}`);
+              const ipSnap = await getDoc(ipDocRef);
+              if (ipSnap.exists()) {
+                currentVoted[q.id] = true;
+                hasChanges = true;
+              }
+            } catch (err) {}
+          }
+        }
+      }
+
+      if (hasChanges && isSubscribed) {
+        setVotedQuestions(currentVoted);
+        try {
+          localStorage.setItem('votedQuestions', JSON.stringify(currentVoted));
+        } catch (e) {}
+      }
+    };
+
+    syncVotedQuestions();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [userIp, activePollData?.questions?.map(q => q.id).join(',')]);
+
   const handleVoteClick = async (questionId: string, overrideCandidateId?: string) => {
     const candidateId = overrideCandidateId || selectedCandidates[questionId];
     if (!candidateId || !activePollData || votedQuestions[questionId]) return;
@@ -300,104 +353,133 @@ export default function App() {
       return;
     }
 
-    // Optimistic local update
-    setPollData(prev => {
-      if (!prev || !prev.questions) return prev;
-      const newQs = JSON.parse(JSON.stringify(prev.questions));
-      const qIndex = newQs.findIndex((q: any) => q.id === questionId);
-      if (qIndex !== -1) {
-         const cIndex = newQs[qIndex].candidates.findIndex((c: any) => c.id === candidateId);
-         if (cIndex !== -1) {
-            newQs[qIndex].candidates[cIndex].votes += 1;
-         }
+    const apiUrl = import.meta.env.VITE_API_URL || '';
+
+    // 1. Pre-check against Express server backend
+    try {
+      const checkRes = await fetch(`${apiUrl}/api/check-voted?questionId=${questionId}&userIp=${userIp}`);
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        if (checkData && checkData.voted) {
+          setVotedQuestions(prev => {
+            const next = { ...prev, [questionId]: true };
+            try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (e) {}
+            return next;
+          });
+          alert(t.alreadyVotedMsg || "A vote has already been submitted from this device/network.");
+          return;
+        }
       }
-      return { ...prev, questions: newQs };
-    });
+    } catch (err) {}
 
-    confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-
-    setVotedQuestions(prev => {
-      const next = { ...prev, [questionId]: true };
+    // 2. Pre-check against Firebase if configured
+    if (isFirebaseConfigured && db) {
       try {
-        localStorage.setItem('votedQuestions', JSON.stringify(next));
-      } catch (e) {
-        console.warn("Could not save to localStorage", e);
-      }
-      return next;
-    });
-
-    // Show interstitial ad after voting
-    if (activePollData) {
-       setTimeout(() => {
-         setTimeLeft(5);
-         setShowAd(true);
-       }, 50);
+        const ipRef = doc(db, 'polls', `main_poll/ip_records/${questionId}_${userIp}`);
+        const existingVoteSnap = await getDoc(ipRef);
+        if (existingVoteSnap && existingVoteSnap.exists()) {
+          setVotedQuestions(prev => {
+            const next = { ...prev, [questionId]: true };
+            try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (e) {}
+            return next;
+          });
+          alert(t.alreadyVotedMsg || "A vote has already been submitted from this device/network.");
+          return;
+        }
+      } catch (err) {}
     }
 
-
+    // 3. Record vote on Express REST backend first
+    let voteSuccess = false;
     try {
-      // Record vote on Express REST backend
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      fetch(`${apiUrl}/api/vote`, {
+      const res = await fetch(`${apiUrl}/api/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questionId, candidateId })
-      })
-      .then(res => res.json())
-      .then(resData => {
+        body: JSON.stringify({ questionId, candidateId, userIp })
+      });
+
+      if (res.status === 403) {
+        setVotedQuestions(prev => {
+          const next = { ...prev, [questionId]: true };
+          try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (e) {}
+          return next;
+        });
+        alert(t.alreadyVotedMsg || "A vote has already been submitted from this device/network.");
+        return;
+      }
+
+      if (res.ok) {
+        const resData = await res.json();
         if (resData && resData.data) {
           setPollData(resData.data);
+          voteSuccess = true;
         }
-      })
-      .catch(err => console.warn('REST API vote error:', err));
-
-      const pollRef = doc(db, 'polls', 'main_poll');
-      const ipRef = doc(db, 'polls', `main_poll/ip_records/${questionId}_${userIp}`);
-
-      await runTransaction(db, async (transaction) => {
-        const ipDoc = await transaction.get(ipRef);
-        if (ipDoc.exists()) {
-           throw new Error("ALREADY_VOTED");
-        }
-
-        const pollDoc = await transaction.get(pollRef);
-        if (!pollDoc.exists()) {
-          throw "Document does not exist!";
-        }
-
-        const currentData = pollDoc.data() as PollData;
-        const isOldFormat = !currentData.questions;
-
-        if (isOldFormat) {
-          const updatedCandidates = [...(currentData as any).candidates];
-          const candidateIndex = updatedCandidates.findIndex((c: any) => c.id === candidateId);
-          if (candidateIndex !== -1) {
-            updatedCandidates[candidateIndex] = {
-              ...updatedCandidates[candidateIndex],
-              votes: updatedCandidates[candidateIndex].votes + 1
-            };
-            transaction.update(pollRef, { candidates: updatedCandidates });
-            transaction.set(ipRef, { timestamp: Date.now() });
-          }
-        } else {
-          const updatedQuestions = JSON.parse(JSON.stringify(currentData.questions)); // deep copy
-          const qIndex = updatedQuestions.findIndex((q: any) => q.id === questionId);
-          if (qIndex !== -1) {
-             const candidateIndex = updatedQuestions[qIndex].candidates.findIndex((c: any) => c.id === candidateId);
-             if (candidateIndex !== -1) {
-               updatedQuestions[qIndex].candidates[candidateIndex].votes += 1;
-               transaction.update(pollRef, { questions: updatedQuestions });
-               transaction.set(ipRef, { timestamp: Date.now() });
-             }
-          }
-        }
-      });
-    } catch (e: any) {
-      if (e?.message === "ALREADY_VOTED") {
-         alert("You have already voted on this poll from this IP address.");
-         return; // Skip local fallback recording if they already voted on server
       }
-      console.warn("Vote recording failed (likely quota limit). Vote recorded locally.", e);
+    } catch (err) {
+      console.warn('REST API vote error:', err);
+    }
+
+    // 4. Record vote on Firebase if configured
+    if (isFirebaseConfigured && db) {
+      try {
+        const ipRef = doc(db, 'polls', `main_poll/ip_records/${questionId}_${userIp}`);
+        const pollRef = doc(db, 'polls', 'main_poll');
+        await runTransaction(db, async (transaction) => {
+          const ipDoc = await transaction.get(ipRef);
+          if (ipDoc.exists()) {
+            throw new Error("ALREADY_VOTED");
+          }
+
+          const pollDoc = await transaction.get(pollRef);
+          if (pollDoc.exists()) {
+            const currentData = pollDoc.data() as PollData;
+            const updatedQuestions = JSON.parse(JSON.stringify(currentData.questions || []));
+            const qIndex = updatedQuestions.findIndex((q: any) => q.id === questionId);
+            if (qIndex !== -1) {
+              const candidateIndex = updatedQuestions[qIndex].candidates.findIndex((c: any) => c.id === candidateId);
+              if (candidateIndex !== -1) {
+                updatedQuestions[qIndex].candidates[candidateIndex].votes = (updatedQuestions[qIndex].candidates[candidateIndex].votes || 0) + 1;
+                transaction.update(pollRef, { questions: updatedQuestions });
+                transaction.set(ipRef, { timestamp: Date.now(), userIp });
+              }
+            }
+          }
+        });
+        voteSuccess = true;
+      } catch (e: any) {
+        if (e?.message === "ALREADY_VOTED") {
+          setVotedQuestions(prev => {
+            const next = { ...prev, [questionId]: true };
+            try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (err) {}
+            return next;
+          });
+          alert(t.alreadyVotedMsg || "A vote has already been submitted from this device/network.");
+          return;
+        }
+      }
+    } else {
+      // If Firebase is not configured, Express vote succeeding is sufficient
+      voteSuccess = true;
+    }
+
+    if (voteSuccess) {
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+
+      setVotedQuestions(prev => {
+        const next = { ...prev, [questionId]: true };
+        try {
+          localStorage.setItem('votedQuestions', JSON.stringify(next));
+        } catch (e) {}
+        return next;
+      });
+
+      // Show interstitial ad after voting
+      if (activePollData) {
+        setTimeout(() => {
+          setTimeLeft(5);
+          setShowAd(true);
+        }, 50);
+      }
     }
   };
 
@@ -576,13 +658,32 @@ export default function App() {
           
           {/* Header */}
           <header className="bg-[#1877F2] text-white py-3 px-5 flex justify-between items-center shrink-0 sm:rounded-t-[2.5rem] border-b border-[#166FE5]">
-            <div className="w-8" />
+            <div className="relative flex items-center">
+              <Languages className="w-3.5 h-3.5 text-white absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none z-10" />
+              <select
+                value={language}
+                onChange={(e) => {
+                  const newLang = e.target.value as Language;
+                  setLanguage(newLang);
+                  try { localStorage.setItem('pbook_lang', newLang); } catch {}
+                }}
+                className="bg-white/15 hover:bg-white/25 text-white font-bold text-xs rounded-full pl-7 pr-6 py-1 border border-white/20 outline-none cursor-pointer appearance-none transition-all shadow-sm focus:ring-2 focus:ring-white/40"
+              >
+                {languages.map((l) => (
+                  <option key={l.code} value={l.code} className="text-zinc-800 bg-white font-semibold">
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3 h-3 text-white absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none opacity-80" />
+            </div>
+
             <h1 className="font-display font-bold text-xl tracking-tight text-center flex-grow">PBOOK</h1>
             <button onClick={() => {
               setShowAdminLogin(true);
               setAdminPassword('');
               setAdminError('');
-            }} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors" title="Open Admin Panel">
+            }} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors" title={t.adminPanel}>
               <Menu className="w-5 h-5" />
             </button>
           </header>
@@ -609,11 +710,11 @@ export default function App() {
                       <div className="mb-4 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <span className="px-3 py-1 bg-zinc-100 text-zinc-600 rounded-full text-xs font-bold uppercase tracking-widest border border-zinc-200">
-                            Question {qIndex + 1}
+                            {t.question} {qIndex + 1}
                           </span>
                           {didVoteThisQuestion && (
                             <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold uppercase tracking-widest border border-emerald-200 flex items-center gap-1">
-                              <Check className="w-3 h-3" /> ಮತ ಹಾಕಿದ್ದೀರಿ
+                              <Check className="w-3 h-3" /> {t.voted}
                             </span>
                           )}
                         </div>
@@ -635,13 +736,13 @@ export default function App() {
                                 }).catch(console.error);
                               } else {
                                 navigator.clipboard.writeText(shareUrl);
-                                alert("ಲಿಂಕ್ ಕಾಪಿ ಮಾಡಲಾಗಿದೆ!");
+                                alert(t.linkCopied);
                               }
                             }}
                             className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-bold text-zinc-500 bg-white border border-zinc-200 rounded-xl hover:text-[#1877F2] hover:border-blue-200 hover:bg-blue-50 transition-all shadow-sm"
                           >
                             <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                            <span className="hidden sm:inline">ಹಂಚಿಕೊಳ್ಳಿ</span>
+                            <span className="hidden sm:inline">{t.share}</span>
                           </button>
                         </div>
                       </div>
@@ -707,10 +808,10 @@ export default function App() {
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                   </svg>
-                                  ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ...
+                                  {t.checking}
                                 </>
                               ) : (
-                                "ಮತ ಸಲ್ಲಿಸಿ"
+                                t.submitVote
                               )}
                             </motion.button>
                           </motion.div>
@@ -742,7 +843,7 @@ export default function App() {
                                        <span className="text-base md:text-lg text-[#1C1E21]">{c.name}</span>
                                     </span>
                                     <div className="flex flex-col items-end">
-                                      <span className="text-zinc-500 font-medium">{c.votes.toLocaleString()} <span className="hidden md:inline">{c.votes === 1 ? 'vote' : 'votes'}</span></span>
+                                      <span className="text-zinc-500 font-medium">{c.votes.toLocaleString()} <span className="hidden md:inline">{c.votes === 1 ? t.vote : t.votes}</span></span>
                                       <span className="text-[#1C1E21] font-bold text-base md:text-lg">{percentage}%</span>
                                     </div>
                                   </div>
@@ -769,7 +870,7 @@ export default function App() {
                               transition={{ delay: 0.5 }}
                               className="text-right text-sm font-medium text-zinc-400 border-b border-zinc-200 pb-6 mt-2"
                             >
-                              ಒಟ್ಟು ಮತಗಳು: {qTotalVotes.toLocaleString()}
+                              {t.totalVotes}: {qTotalVotes.toLocaleString()}
                             </motion.div>
                           </motion.div>
                         )}
@@ -791,7 +892,7 @@ export default function App() {
                       className="w-full bg-white hover:bg-zinc-50 text-zinc-800 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all duration-300 shadow-sm ring-1 ring-zinc-200 hover:ring-zinc-300"
                     >
                       <BarChart2 className="w-5 h-5" />
-                      ಎಲ್ಲಾ ಫಲಿತಾಂಶಗಳನ್ನು ವೀಕ್ಷಿಸಿ
+                      {t.viewAllResults}
                     </button>
                   )}
                   
@@ -799,6 +900,9 @@ export default function App() {
                      <SocialShare 
                        url={window.location.href} 
                        title={activePollData?.questions?.[0]?.text || 'Check out this poll!'} 
+                       shareLabel={t.shareThisPoll}
+                       copyLinkLabel={t.copyLink}
+                       linkCopiedLabel={t.linkCopied}
                      />
                   </div>
                 </div>
@@ -829,7 +933,7 @@ export default function App() {
               {pollData.faqs && pollData.faqs.length > 0 && (
                 <div className="w-full max-w-2xl flex flex-col gap-3">
                   <h3 className="text-lg font-display font-bold text-[#1C1E21] mb-2 flex items-center gap-2">
-                    <HelpCircle className="w-5 h-5 text-zinc-400" /> Frequently Asked Questions
+                    <HelpCircle className="w-5 h-5 text-zinc-400" /> {t.faqs}
                   </h3>
                   {pollData.faqs.map((faq, index) => (
                     <div key={index} className="bg-zinc-50 rounded-2xl overflow-hidden border border-zinc-200/80 hover:border-zinc-300 transition-colors">
@@ -860,7 +964,7 @@ export default function App() {
               )}
 
               <div className="flex flex-col items-center gap-3">
-                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">ಈ ಪೋಲ್ ಅನ್ನು ಹಂಚಿಕೊಳ್ಳಿ</span>
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{t.shareThisPoll}</span>
                 <div className="flex items-center gap-4">
                   <a href={`https://wa.me/?text=${encodeURIComponent((activePollData?.questions?.map(q => q.text).join(' | ') || 'Check out this poll') + '\n\n' + window.location.href)}`} target="_blank" rel="noopener noreferrer" className="bg-zinc-100 text-zinc-600 hover:bg-[#25D366] hover:text-white p-3 rounded-full transition-colors" title="Share on WhatsApp">
                     <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
@@ -872,7 +976,7 @@ export default function App() {
               </div>
               <div className="flex items-center gap-2 border-t border-zinc-100 pt-6 w-full justify-center">
                 <Phone className="w-4 h-4 text-zinc-400" />
-                <span className="text-sm font-medium tracking-wide text-zinc-500">Contact for Ad: <span className="text-zinc-800">{pollData.contactPhone}</span></span>
+                <span className="text-sm font-medium tracking-wide text-zinc-500">{t.contactUs}: <span className="text-zinc-800">{pollData.contactPhone}</span></span>
               </div>
             </footer>
           
@@ -894,19 +998,19 @@ export default function App() {
                 <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mb-5 mx-auto">
                   <HelpCircle className="w-6 h-6" />
                 </div>
-                <h3 className="text-2xl font-display font-bold text-center text-[#1C1E21] mb-2">Confirm Vote</h3>
+                <h3 className="text-2xl font-display font-bold text-center text-[#1C1E21] mb-2">{t.confirmVoteTitle}</h3>
                 <p className="text-zinc-500 text-center mb-8 font-medium">
-                  Are you sure you want to vote for <span className="text-[#1C1E21] font-bold">
+                  {t.confirmVoteDesc} <br />
+                  <span className="text-[#1C1E21] font-bold block mt-2 text-lg">
                     {activePollData.questions.find(q => q.id === confirmVoteData.questionId)?.candidates.find(c => c.id === confirmVoteData.candidateId)?.name}
-                  </span>?
-                  <br />This action cannot be undone.
+                  </span>
                 </p>
                 <div className="flex gap-3">
                   <button 
                     onClick={() => setConfirmVoteData(null)}
                     className="flex-1 py-3.5 px-4 rounded-xl font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-colors"
                   >
-                    Cancel
+                    {t.cancel}
                   </button>
                   <button 
                     onClick={() => {
@@ -915,7 +1019,7 @@ export default function App() {
                     }}
                     className="flex-1 py-3.5 px-4 rounded-xl font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] shadow-md hover:shadow-lg transition-all"
                   >
-                    Confirm
+                    {t.confirm}
                   </button>
                 </div>
               </motion.div>

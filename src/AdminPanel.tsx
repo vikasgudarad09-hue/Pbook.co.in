@@ -265,8 +265,10 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any, rotation = 0): Pr
           body: JSON.stringify(dataToSave)
         }).catch(err => console.warn('REST API save error:', err));
 
-        const pollRef = doc(db, 'polls', 'main_poll');
-        await setDoc(pollRef, dataToSave).catch(err => console.warn('Firestore setDoc failed:', err));
+        if (db) {
+          const pollRef = doc(db, 'polls', 'main_poll');
+          await setDoc(pollRef, dataToSave).catch(err => console.warn('Firestore setDoc failed:', err));
+        }
 
         alert('Poll published successfully!');
       } catch (e: any) {

@@ -1,7 +1,21 @@
 import { Share2, Facebook, Twitter, Link as LinkIcon, MessageCircle } from 'lucide-react';
 import { useState } from 'react';
 
-export function SocialShare({ url, title }: { url: string; title: string }) {
+interface SocialShareProps {
+  url: string;
+  title: string;
+  shareLabel?: string;
+  copyLinkLabel?: string;
+  linkCopiedLabel?: string;
+}
+
+export function SocialShare({
+  url,
+  title,
+  shareLabel = "Share this poll",
+  copyLinkLabel = "Copy Link",
+  linkCopiedLabel = "Link copied!"
+}: SocialShareProps) {
   const [copied, setCopied] = useState(false);
   const encodedUrl = encodeURIComponent(url);
   const encodedTitle = encodeURIComponent(title);
@@ -40,7 +54,7 @@ export function SocialShare({ url, title }: { url: string; title: string }) {
   return (
     <div className="flex flex-col gap-3 mt-2 w-full">
       <div className="flex justify-between items-center px-1 mb-1">
-        <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">ಈ ಪೋಲ್ ಅನ್ನು ಹಂಚಿಕೊಳ್ಳಿ</h3>
+        <h3 className="text-sm font-semibold text-zinc-500 uppercase tracking-wider">{shareLabel}</h3>
       </div>
       <div className="flex gap-2">
         {shareLinks.map((link) => (
@@ -58,13 +72,13 @@ export function SocialShare({ url, title }: { url: string; title: string }) {
         <button
           onClick={handleCopy}
           className="flex-1 flex items-center justify-center py-3 rounded-xl bg-zinc-200 hover:bg-zinc-300 text-zinc-700 transition-colors"
-          title="Copy Link"
+          title={copyLinkLabel}
         >
           <LinkIcon className="w-5 h-5" />
         </button>
       </div>
       {copied && (
-        <p className="text-xs text-center text-green-600 font-medium">ಲಿಂಕ್ ಕಾಪಿ ಮಾಡಲಾಗಿದೆ!</p>
+        <p className="text-xs text-center text-green-600 font-medium">{linkCopiedLabel}</p>
       )}
     </div>
   );
