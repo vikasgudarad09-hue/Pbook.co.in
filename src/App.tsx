@@ -68,50 +68,6 @@ const fetchUserIpHash = async (): Promise<string> => {
   return getFallbackIpHash();
 };
 
-function GoogleAd({ className = "" }: { className?: string }) {
-  const adPushed = useRef(false);
-  const insRef = useRef<HTMLModElement>(null);
-
-  useEffect(() => {
-    let timeoutId: number;
-    
-    const pushAd = () => {
-      if (adPushed.current) return;
-      // Only push if window.adsbygoogle script is actually loaded and initialized
-      if (insRef.current && insRef.current.offsetWidth > 0 && typeof window !== 'undefined' && 'adsbygoogle' in window) {
-        try {
-          // @ts-ignore
-          (window.adsbygoogle = window.adsbygoogle || []).push({});
-          adPushed.current = true;
-        } catch (e) {
-          // Ignore known adsense errors silently
-        }
-      } else if (!adPushed.current) {
-        timeoutId = window.setTimeout(pushAd, 500);
-      }
-    };
-
-    pushAd();
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, []);
-
-  return (
-    <div className={`w-full overflow-hidden flex flex-col items-center justify-center bg-zinc-50 border border-zinc-200/60 rounded-3xl p-2 ${className}`}>
-      <span className="text-[10px] uppercase text-zinc-400 font-bold tracking-wider mb-1">Advertisement</span>
-      <ins ref={insRef}
-           className="adsbygoogle w-full block"
-           style={{ display: 'block', minHeight: '100px', width: '100%' }}
-           data-ad-client="ca-pub-XXXXXXXXXXXXXXXX" 
-           data-ad-slot="XXXXXXXXXX"
-           data-ad-format="auto"
-           data-full-width-responsive="true"></ins>
-    </div>
-  );
-}
-
 const AdminPanel = lazy(() => import('./AdminPanel'));
 
 export default function App() {
@@ -777,18 +733,18 @@ export default function App() {
                                     <Check className="w-3 h-3 md:w-4 md:h-4" />
                                   </div>
                                   {c.photoUrl?.trim() && (
-                                     <div className="relative shrink-0 overflow-hidden rounded-xl border border-zinc-100 shadow-sm">
-                                       <LazyImage src={c.photoUrl} className="w-10 h-10 md:w-14 md:h-14 object-cover transition-transform duration-500 group-hover:scale-110" alt={c.name} />
+                                     <div className="relative shrink-0 overflow-hidden rounded-2xl border-2 border-zinc-100 shadow-sm">
+                                       <LazyImage src={c.photoUrl} className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 object-cover transition-transform duration-500 group-hover:scale-110" alt={c.name} />
                                        <button
                                           onClick={(e) => { e.stopPropagation(); setFullScreenImage(c.photoUrl); }}
                                          className="absolute inset-0 bg-[#1877F2]/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                                          title="View Fullscreen"
                                        >
-                                         <Maximize className="w-4 h-4 md:w-5 md:h-5" />
+                                         <Maximize className="w-5 h-5 md:w-6 md:h-6" />
                                        </button>
                                      </div>
                                   )}
-                                  <span className={`font-medium text-base md:text-lg transition-colors ${isSelected ? 'text-[#1C1E21]' : 'text-zinc-700'}`}>
+                                  <span className={`font-semibold text-base sm:text-lg md:text-xl transition-colors ${isSelected ? 'text-[#1C1E21]' : 'text-zinc-700'}`}>
                                     {c.name}
                                   </span>
                                 </motion.div>
@@ -833,14 +789,20 @@ export default function App() {
                                   initial={{ opacity: 0, scale: 0.95 }}
                                   animate={{ opacity: 1, scale: 1 }}
                                   transition={{ delay: i * 0.1, type: "spring", stiffness: 100 }}
-                                  className={`flex flex-col gap-2 md:gap-3 p-3 md:p-4 bg-white border border-zinc-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden`}
+                                  className={`flex flex-col gap-2 md:gap-3 p-3.5 md:p-4 bg-white border border-zinc-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden`}
                                 >
                                   <div className="flex justify-between items-center text-xs md:text-sm font-semibold text-zinc-700 relative z-10">
-                                    <span className="flex items-center gap-2 md:gap-3">
+                                    <span className="flex items-center gap-3 sm:gap-4">
                                        {c.photoUrl?.trim() && (
-                                         <LazyImage src={c.photoUrl} className="w-8 h-8 md:w-12 md:h-12 object-cover rounded-xl shadow-sm border border-zinc-100" alt={c.name} />
+                                         <div 
+                                           onClick={() => setFullScreenImage(c.photoUrl)} 
+                                           className="relative shrink-0 overflow-hidden rounded-2xl border-2 border-zinc-100 shadow-sm cursor-pointer group/photo"
+                                           title="Click to expand"
+                                         >
+                                           <LazyImage src={c.photoUrl} className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 object-cover transition-transform duration-300 group-hover/photo:scale-105" alt={c.name} />
+                                         </div>
                                        )}
-                                       <span className="text-base md:text-lg text-[#1C1E21]">{c.name}</span>
+                                       <span className="text-lg sm:text-xl font-bold text-[#1C1E21]">{c.name}</span>
                                     </span>
                                     <div className="flex flex-col items-end">
                                       <span className="text-zinc-500 font-medium">{c.votes.toLocaleString()} <span className="hidden md:inline">{c.votes === 1 ? t.vote : t.votes}</span></span>
@@ -918,9 +880,6 @@ export default function App() {
                        </div>
                      )}
                    </div>
-                   
-                   {/* Google Ad Slot */}
-                   <GoogleAd className="w-full min-h-[100px]" />
                 </div>
               </motion.div>
             </AnimatePresence>
