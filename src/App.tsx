@@ -70,6 +70,38 @@ const fetchUserIpHash = async (): Promise<string> => {
 
 const AdminPanel = lazy(() => import('./AdminPanel'));
 
+function AdsterraNativeBanner({ className = "" }: { className?: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const loaded = useRef(false);
+
+  useEffect(() => {
+    if (loaded.current) return;
+    loaded.current = true;
+    
+    const container = containerRef.current;
+    if (!container) return;
+
+    const div = document.createElement('div');
+    div.id = 'container-cde1c28640b954e72a9619c23e223fa9';
+    container.appendChild(div);
+
+    const script = document.createElement('script');
+    script.src = 'https://pl30825247.effectivecpmnetwork.com/cde1c28640b954e72a9619c23e223fa9/invoke.js';
+    script.async = true;
+    script.setAttribute('data-cfasync', 'false');
+    container.appendChild(script);
+  }, []);
+
+  return (
+    <div className={`w-full max-w-3xl mx-auto flex flex-col items-center justify-center my-6 overflow-hidden rounded-3xl bg-white p-4 sm:p-6 shadow-md border-2 border-amber-200/60 ${className}`}>
+      <span className="text-xs uppercase text-amber-600 font-extrabold tracking-widest mb-2 px-3 py-0.5 rounded-full bg-amber-50 border border-amber-200">
+        Sponsored Advertisement
+      </span>
+      <div ref={containerRef} className="w-full min-h-[250px] sm:min-h-[300px] flex justify-center items-center overflow-auto" />
+    </div>
+  );
+}
+
 export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -429,13 +461,8 @@ export default function App() {
         return next;
       });
 
-      // Show interstitial ad after voting
-      if (activePollData) {
-        setTimeout(() => {
-          setTimeLeft(5);
-          setShowAd(true);
-        }, 50);
-      }
+      // Direct vote completed view without blocking overlay
+      /* Interstitial overlay skipped for better user retention */
     }
   };
 
@@ -714,42 +741,61 @@ export default function App() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0, y: -10 }}
                             transition={{ duration: 0.2 }}
-                            className="flex flex-col gap-4"
+                            className="flex flex-col gap-5"
                           >
-                            {q.candidates.map((c, i) => {
-                              const isSelected = selectedCandidate === c.id;
-                              return (
-                                <motion.div 
-                                  initial={{ opacity: 0, y: 10 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  transition={{ delay: i * 0.05 }}
-                                  key={c.id}
-                                  onClick={() => {
-                                    setSelectedCandidates({ ...selectedCandidates, [q.id]: c.id });
-                                  }}
-                                  className={`group flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-2xl cursor-pointer transition-all duration-300 ${isSelected ? 'bg-white shadow-[0_8px_30px_rgb(0,0,0,0.08)] ring-2 ring-[#1877F2] scale-[1.02]' : 'bg-white shadow-sm ring-1 ring-zinc-200 hover:shadow-md hover:ring-zinc-300'}`}
-                                >
-                                  <div className={`w-5 h-5 md:w-7 md:h-7 rounded-full flex items-center justify-center shrink-0 transition-colors duration-300 ${isSelected ? 'bg-[#1877F2] text-white' : 'bg-zinc-100 text-transparent group-hover:bg-zinc-200'}`}>
-                                    <Check className="w-3 h-3 md:w-4 md:h-4" />
-                                  </div>
-                                  {c.photoUrl?.trim() && (
-                                     <div className="relative shrink-0 overflow-hidden rounded-2xl border-2 border-zinc-100 shadow-sm">
-                                       <LazyImage src={c.photoUrl} className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 object-cover transition-transform duration-500 group-hover:scale-110" alt={c.name} />
-                                       <button
+                            <p className="text-xs font-bold uppercase tracking-wider text-zinc-400 -mb-2">Make a choice:</p>
+                            <div className="grid grid-cols-2 gap-3.5 sm:gap-5">
+                              {q.candidates.map((c, i) => {
+                                const isSelected = selectedCandidate === c.id;
+                                return (
+                                  <motion.div 
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: i * 0.05 }}
+                                    key={c.id}
+                                    onClick={() => {
+                                      setSelectedCandidates({ ...selectedCandidates, [q.id]: c.id });
+                                    }}
+                                    className={`group relative flex flex-col rounded-2xl cursor-pointer overflow-hidden border-2 transition-all duration-300 ${isSelected ? 'border-[#1877F2] bg-white shadow-xl ring-4 ring-[#1877F2]/15 scale-[1.02]' : 'border-zinc-200/80 bg-white shadow-sm hover:border-zinc-300 hover:shadow-md'}`}
+                                  >
+                                    <div className="relative w-full aspect-[4/3] bg-zinc-100 overflow-hidden shrink-0">
+                                      {c.photoUrl?.trim() ? (
+                                        <LazyImage src={c.photoUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={c.name} />
+                                      ) : (
+                                        <div className="w-full h-full bg-gradient-to-br from-zinc-100 to-zinc-200 flex flex-col items-center justify-center text-zinc-400 gap-1 p-2">
+                                          <User className="w-10 h-10 stroke-[1.5]" />
+                                        </div>
+                                      )}
+
+                                      {c.photoUrl?.trim() && (
+                                        <button
                                           onClick={(e) => { e.stopPropagation(); setFullScreenImage(c.photoUrl); }}
-                                         className="absolute inset-0 bg-[#1877F2]/40 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                                         title="View Fullscreen"
-                                       >
-                                         <Maximize className="w-5 h-5 md:w-6 md:h-6" />
-                                       </button>
-                                     </div>
-                                  )}
-                                  <span className={`font-semibold text-base sm:text-lg md:text-xl transition-colors ${isSelected ? 'text-[#1C1E21]' : 'text-zinc-700'}`}>
-                                    {c.name}
-                                  </span>
-                                </motion.div>
-                              )
-                            })}
+                                          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-black/70 backdrop-blur-sm"
+                                          title="View Fullscreen"
+                                        >
+                                          <Maximize className="w-4 h-4" />
+                                        </button>
+                                      )}
+
+                                      {isSelected && (
+                                        <div className="absolute top-2 left-2 px-2.5 py-1 rounded-full bg-[#1877F2] text-white text-xs font-extrabold shadow-md flex items-center gap-1">
+                                          <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className={`p-3 sm:p-4 flex items-center gap-2.5 ${isSelected ? 'bg-blue-50/70' : 'bg-white'}`}>
+                                      <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border-2 transition-colors duration-300 ${isSelected ? 'border-[#1877F2] bg-[#1877F2] text-white' : 'border-zinc-300 bg-white group-hover:border-zinc-400'}`}>
+                                        {isSelected ? <Check className="w-3 h-3 stroke-[3]" /> : <div className="w-1.5 h-1.5 rounded-full bg-transparent" />}
+                                      </div>
+                                      <span className={`font-bold text-sm sm:text-base md:text-lg transition-colors truncate ${isSelected ? 'text-[#1877F2]' : 'text-[#1C1E21]'}`}>
+                                        {c.name}
+                                      </span>
+                                    </div>
+                                  </motion.div>
+                                )
+                              })}
+                            </div>
                             
                             <motion.button 
                               initial={{ opacity: 0, y: 10 }}
@@ -781,51 +827,66 @@ export default function App() {
                             transition={{ duration: 0.3 }}
                             className="flex flex-col gap-6"
                           >
-                            {q.candidates.map((c, i) => {
-                              const percentage = qTotalVotes > 0 ? Math.round((c.votes / qTotalVotes) * 100) : 0;
-                              return (
-                                <motion.div 
-                                  key={c.id} 
-                                  initial={{ opacity: 0, scale: 0.95 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  transition={{ delay: i * 0.1, type: "spring", stiffness: 100 }}
-                                  className={`flex flex-col gap-2 md:gap-3 p-3.5 md:p-4 bg-white border border-zinc-200 rounded-2xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden`}
-                                >
-                                  <div className="flex justify-between items-center text-xs md:text-sm font-semibold text-zinc-700 relative z-10">
-                                    <span className="flex items-center gap-3 sm:gap-4">
-                                       {c.photoUrl?.trim() && (
-                                         <div 
-                                           onClick={() => setFullScreenImage(c.photoUrl)} 
-                                           className="relative shrink-0 overflow-hidden rounded-2xl border-2 border-zinc-100 shadow-sm cursor-pointer group/photo"
-                                           title="Click to expand"
-                                         >
-                                           <LazyImage src={c.photoUrl} className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 object-cover transition-transform duration-300 group-hover/photo:scale-105" alt={c.name} />
-                                         </div>
-                                       )}
-                                       <span className="text-lg sm:text-xl font-bold text-[#1C1E21]">{c.name}</span>
-                                    </span>
-                                    <div className="flex flex-col items-end">
-                                      <span className="text-zinc-500 font-medium">{c.votes.toLocaleString()} <span className="hidden md:inline">{c.votes === 1 ? t.vote : t.votes}</span></span>
-                                      <span className="text-[#1C1E21] font-bold text-base md:text-lg">{percentage}%</span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {q.candidates.map((c, i) => {
+                                const percentage = qTotalVotes > 0 ? Math.round((c.votes / qTotalVotes) * 100) : 0;
+                                return (
+                                  <motion.div 
+                                    key={c.id} 
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ delay: i * 0.1, type: "spring", stiffness: 100 }}
+                                    className="flex flex-col bg-white border border-zinc-200/90 rounded-2xl shadow-sm hover:shadow-md transition-shadow relative overflow-hidden"
+                                  >
+                                    {c.photoUrl?.trim() ? (
+                                      <div 
+                                        onClick={() => setFullScreenImage(c.photoUrl)} 
+                                        className="relative w-full aspect-[4/3] bg-zinc-100 overflow-hidden cursor-pointer group/photo shrink-0"
+                                        title="Click to view fullscreen"
+                                      >
+                                        <LazyImage src={c.photoUrl} className="w-full h-full object-cover transition-transform duration-300 group-hover/photo:scale-105" alt={c.name} />
+                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover/photo:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                          <Maximize className="w-6 h-6" />
+                                        </div>
+                                        <div className="absolute top-2.5 right-2.5 bg-black/75 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs sm:text-sm font-black shadow-lg">
+                                          {percentage}%
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="w-full h-20 bg-gradient-to-br from-zinc-100 to-zinc-200 flex items-center justify-between px-4">
+                                        <User className="w-6 h-6 text-zinc-400" />
+                                        <div className="bg-zinc-800 text-white px-3 py-1 rounded-full text-xs font-black">
+                                          {percentage}%
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    <div className="p-3.5 sm:p-4 flex flex-col gap-2 relative z-10 flex-grow justify-between">
+                                      <div className="flex justify-between items-center gap-2">
+                                        <span className="text-base sm:text-lg font-bold text-[#1C1E21] leading-tight truncate">{c.name}</span>
+                                        <span className="text-zinc-500 font-semibold text-xs shrink-0">{c.votes.toLocaleString()} {c.votes === 1 ? t.vote : t.votes}</span>
+                                      </div>
+
+                                      <div className="w-full h-3 bg-zinc-100 rounded-full overflow-hidden shadow-inner mt-1 relative z-10">
+                                        <motion.div 
+                                          className={`h-full ${THEMES[c.colorTheme || 'blue'].fill} rounded-full`}
+                                          initial={{ width: 0 }}
+                                          animate={{ width: `${percentage}%` }}
+                                          transition={{ duration: 1.5, type: 'spring', bounce: 0.2, delay: i * 0.1 }}
+                                        />
+                                      </div>
                                     </div>
-                                  </div>
-                                  <div className="w-full h-3 bg-zinc-100 rounded-full overflow-hidden shadow-inner mt-1 relative z-10">
+
                                     <motion.div 
-                                      className={`h-full ${THEMES[c.colorTheme || 'blue'].fill} rounded-full`}
+                                      className={`absolute top-0 left-0 bottom-0 ${THEMES[c.colorTheme || 'blue'].bg} opacity-20 z-0 pointer-events-none`}
                                       initial={{ width: 0 }}
                                       animate={{ width: `${percentage}%` }}
                                       transition={{ duration: 1.5, type: 'spring', bounce: 0.2, delay: i * 0.1 }}
                                     />
-                                  </div>
-                                  <motion.div 
-                                    className={`absolute top-0 left-0 bottom-0 ${THEMES[c.colorTheme || 'blue'].bg} opacity-30 z-0`}
-                                    initial={{ width: 0 }}
-                                    animate={{ width: `${percentage}%` }}
-                                    transition={{ duration: 1.5, type: 'spring', bounce: 0.2, delay: i * 0.1 }}
-                                  />
-                                </motion.div>
-                              )
-                            })}
+                                  </motion.div>
+                                )
+                              })}
+                            </div>
                             <motion.div 
                               initial={{ opacity: 0 }} 
                               animate={{ opacity: 1 }} 
@@ -845,10 +906,6 @@ export default function App() {
                   {!viewAllResults && (
                     <button 
                       onClick={() => {
-                        if (activePollData) {
-                          setTimeLeft(5);
-                          setShowAd(true);
-                        }
                         setViewAllResults(true);
                       }}
                       className="w-full bg-white hover:bg-zinc-50 text-zinc-800 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all duration-300 shadow-sm ring-1 ring-zinc-200 hover:ring-zinc-300"
@@ -870,6 +927,8 @@ export default function App() {
                 </div>
 
                 <div className="w-full mb-8 flex flex-col gap-4">
+                   <AdsterraNativeBanner />
+                   
                    <div className="w-full h-32 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/60 rounded-3xl flex items-center justify-center shadow-sm overflow-hidden relative cursor-pointer hover:shadow-md transition-all duration-300 group">
                      {pollData.bannerAdUrl ? (
                         <LazyImage src={pollData.bannerAdUrl} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt="Banner Ad" />
