@@ -522,19 +522,36 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any, rotation = 0): Pr
 
         {form.questions.map((q, qIndex) => (
           <div key={q.id} className="bg-white p-6 md:p-8 rounded-2xl border border-zinc-200/80 shadow-sm relative mb-8">
-             <div className="flex justify-between items-center mb-6 pb-4 border-b border-zinc-100">
-               <h3 className="font-bold text-xl text-[#1C1E21] flex items-center gap-2">
-                 Question {qIndex + 1}
-               </h3>
-               {form.questions.length > 1 && (
-                 <button onClick={() => {
-                   setForm(prev => ({ ...prev, questions: prev.questions.filter((_, i) => i !== qIndex) }));
-                   
-                 }} className="text-red-500 hover:bg-red-50 p-2 rounded-xl transition-colors" title="Remove Question">
-                   <Trash2 className="w-5 h-5" />
-                 </button>
-               )}
-             </div>
+              <div className="flex justify-between items-center mb-6 pb-4 border-b border-zinc-100">
+                <h3 className="font-bold text-xl text-[#1C1E21] flex items-center gap-2">
+                  Question {qIndex + 1}
+                </h3>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`Are you sure you want to delete Question ${qIndex + 1} ("${q.text}")?`)) {
+                      setForm(prev => {
+                        const newQuestions = prev.questions.filter((_, i) => i !== qIndex);
+                        if (newQuestions.length === 0) {
+                          newQuestions.push({
+                            id: Date.now().toString(),
+                            text: 'New Question',
+                            candidates: [
+                              { id: "c1", name: "Option 1", photoUrl: "", colorTheme: "blue", votes: 0 },
+                              { id: "c2", name: "Option 2", photoUrl: "", colorTheme: "green", votes: 0 }
+                            ]
+                          });
+                        }
+                        return { ...prev, questions: newQuestions };
+                      });
+                    }
+                  }} 
+                  className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-xl transition-all shadow-sm" 
+                  title="Delete Question"
+                >
+                  <Trash2 className="w-4 h-4 text-red-600" /> Delete Question
+                </button>
+              </div>
              
              <div className="mb-8">
                <label className="block text-sm font-bold text-zinc-700 mb-2">Question Text</label>
@@ -581,8 +598,9 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any, rotation = 0): Pr
              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                {q.candidates.map((c, cIndex) => (
                  <div key={c.id} className="border border-zinc-200 p-4 rounded-xl bg-zinc-50/50 flex flex-col sm:flex-row gap-5 relative hover:border-[#1877F2]/50 transition-colors group">
-                   {q.candidates.length > 2 && (
+                   {q.candidates.length > 1 && (
                       <button 
+                        type="button"
                         onClick={() => {
                           setForm(prev => {
                             const newQs = [...prev.questions];
@@ -590,10 +608,11 @@ const getCroppedImg = async (imageSrc: string, pixelCrop: any, rotation = 0): Pr
                             return { ...prev, questions: newQs };
                           });
                         }}
-                        className="absolute top-2 right-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        className="absolute top-2 right-2 text-red-500 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-colors flex items-center gap-1 text-[11px] font-bold border border-red-100"
                         title="Remove Option"
                       >
-                       <Trash2 className="w-4 h-4" />
+                       <Trash2 className="w-3.5 h-3.5" />
+                       <span className="hidden sm:inline">Delete</span>
                      </button>
                    )}
                    

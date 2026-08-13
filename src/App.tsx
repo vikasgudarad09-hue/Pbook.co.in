@@ -466,6 +466,38 @@ export default function App() {
     }
   };
 
+  const handleQuickDeleteQuestion = async (qIndex: number, questionText: string) => {
+    if (!activePollData) return;
+    if (confirm(`Admin: Are you sure you want to delete Question ${qIndex + 1} ("${questionText}")?`)) {
+      const updatedQuestions = activePollData.questions.filter((_, i) => i !== qIndex);
+      const newPollData = {
+        ...activePollData,
+        questions: updatedQuestions.length > 0 ? updatedQuestions : [
+          {
+            id: Date.now().toString(),
+            text: 'New Question',
+            candidates: [
+              { id: "c1", name: "Option 1", photoUrl: "", colorTheme: "blue" as const, votes: 0 },
+              { id: "c2", name: "Option 2", photoUrl: "", colorTheme: "green" as const, votes: 0 }
+            ]
+          }
+        ]
+      };
+      setPollData(newPollData);
+      
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      fetch(`${apiUrl}/api/poll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newPollData)
+      }).catch(err => console.warn('REST API save error:', err));
+
+      if (db) {
+        const pollRef = doc(db, 'polls', 'main_poll');
+        setDoc(pollRef, newPollData).catch(err => console.warn('Firestore setDoc failed:', err));
+      }
+    }
+  };
   if (!pollData || !activePollData) {
     return (
       <div className="min-h-[100dvh] bg-[#F0F2F5] flex flex-col items-center justify-center font-sans antialiased text-[#1C1E21]">
@@ -700,6 +732,17 @@ export default function App() {
                               <Check className="w-3 h-3" /> {t.voted}
                             </span>
                           )}
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleQuickDeleteQuestion(qIndex, q.text)}
+                              className="flex items-center gap-1.5 px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded-full text-xs font-bold transition-colors border border-red-200 shadow-sm"
+                              title="Delete this question"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                              <span>Delete Question</span>
+                            </button>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 sm:gap-2">
                           <a href={`https://wa.me/?text=${encodeURIComponent(`Vote now: ${q.text}\n\n${window.location.origin}${window.location.pathname}?q=${q.id}`)}`} target="_blank" rel="noopener noreferrer" className="p-1.5 sm:p-2 text-zinc-400 hover:text-[#25D366] hover:bg-[#25D366]/10 rounded-lg transition-colors" title="Share on WhatsApp">
@@ -761,7 +804,7 @@ export default function App() {
                                     <div className="relative w-full h-52 sm:h-64 bg-zinc-100 overflow-hidden shrink-0">
                                       {c.photoUrl?.trim() ? (
                                         <>
-                                          <LazyImage src={c.photoUrl} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt={c.name} />
+                                          <LazyImage src={c.photoUrl} className="w-full h-full aspect-video object-cover transition-transform duration-500 group-hover:scale-105" alt={c.name} />
                                           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
                                         </>
                                       ) : (
@@ -853,7 +896,7 @@ export default function App() {
                                         className="relative w-full h-52 sm:h-64 bg-zinc-100 overflow-hidden cursor-pointer group/photo shrink-0"
                                         title="Click to view fullscreen"
                                       >
-                                        <LazyImage src={c.photoUrl} className="w-full h-full object-cover transition-transform duration-300 group-hover/photo:scale-105" alt={c.name} />
+                                        <LazyImage src={c.photoUrl} className="w-full h-full aspect-video object-cover transition-transform duration-300 group-hover/photo:scale-105" alt={c.name} />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-80" />
                                         <div className="absolute top-3 right-3 p-2 rounded-full bg-black/60 text-white backdrop-blur-md opacity-0 group-hover/photo:opacity-100 transition-opacity">
                                           <Maximize className="w-4 h-4" />
@@ -866,9 +909,10 @@ export default function App() {
                                         </div>
                                       </div>
                                     ) : (
-                                      <div className="w-full h-24 bg-gradient-to-br from-zinc-100 to-zinc-200 flex items-center justify-between px-5">
-                                        <User className="w-8 h-8 text-zinc-400" />
-                                        <div className="bg-zinc-800 text-white px-3.5 py-1 rounded-full text-sm font-black">
+                                      <div className="relative w-full h-52 sm:h-64 bg-gradient-to-br from-zinc-100 to-zinc-200 flex flex-col items-center justify-center text-zinc-400 gap-2 p-4 shrink-0">
+                                        <User className="w-16 h-16 stroke-[1.5]" />
+                                        <span className="text-xs font-semibold text-zinc-400">No Image</span>
+                                        <div className="absolute top-3 left-3 bg-black/75 backdrop-blur-md text-white px-3.5 py-1 rounded-full text-sm font-black shadow-lg">
                                           {percentage}%
                                         </div>
                                       </div>
