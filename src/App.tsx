@@ -72,14 +72,13 @@ const AdminPanel = lazy(() => import('./AdminPanel'));
 
 function AdsterraNativeBanner({ className = "" }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const loaded = useRef(false);
 
   useEffect(() => {
-    if (loaded.current) return;
-    loaded.current = true;
-    
     const container = containerRef.current;
     if (!container) return;
+
+    // Reset container contents to prevent duplicate elements on re-render
+    container.innerHTML = '';
 
     const div = document.createElement('div');
     div.id = 'container-cde1c28640b954e72a9619c23e223fa9';
@@ -93,13 +92,16 @@ function AdsterraNativeBanner({ className = "" }: { className?: string }) {
       console.warn('Sponsored ad network script blocked or failed to load.');
     };
     container.appendChild(script);
+
+    return () => {
+      if (container) {
+        container.innerHTML = '';
+      }
+    };
   }, []);
 
   return (
-    <div className={`w-full max-w-3xl mx-auto flex flex-col items-center justify-center my-6 overflow-hidden rounded-3xl bg-white p-4 sm:p-6 shadow-md border-2 border-amber-200/60 ${className}`}>
-      <span className="text-xs uppercase text-amber-600 font-extrabold tracking-widest mb-2 px-3 py-0.5 rounded-full bg-amber-50 border border-amber-200">
-        Sponsored Advertisement
-      </span>
+    <div className={`w-full max-w-3xl mx-auto flex flex-col items-center justify-center my-6 overflow-hidden rounded-3xl bg-white p-4 sm:p-6 shadow-md border border-zinc-200/80 ${className}`}>
       <div ref={containerRef} className="w-full min-h-[250px] sm:min-h-[300px] flex justify-center items-center overflow-auto" />
     </div>
   );
@@ -780,7 +782,7 @@ export default function App() {
                       </h2>
                       
                       <div className="flex flex-col gap-8">
-                        {!didVoteThisQuestion && (
+                        {!showResults && (
                           <motion.div 
                             key="voting"
                             initial={{ opacity: 0 }}
@@ -963,15 +965,33 @@ export default function App() {
                 })}
 
                 <div className="flex flex-col gap-4 mt-4 mb-10 w-full">
-                  {!viewAllResults && (
+                  {!viewAllResults ? (
                     <button 
+                      id="view-all-results-btn"
                       onClick={() => {
                         setViewAllResults(true);
+                        setTimeout(() => {
+                          const firstQ = document.getElementById(`question-${activePollData.questions[0]?.id}`);
+                          if (firstQ) {
+                            firstQ.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }
+                        }, 50);
                       }}
-                      className="w-full bg-white hover:bg-zinc-50 text-zinc-800 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all duration-300 shadow-sm ring-1 ring-zinc-200 hover:ring-zinc-300"
+                      className="w-full bg-white hover:bg-zinc-50 text-zinc-800 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all duration-300 shadow-md ring-1 ring-zinc-200 hover:ring-zinc-300 active:scale-[0.99]"
                     >
-                      <BarChart2 className="w-5 h-5" />
-                      {t.viewAllResults}
+                      <BarChart2 className="w-5 h-5 text-[#1877F2]" />
+                      <span>{t.viewAllResults}</span>
+                    </button>
+                  ) : (
+                    <button 
+                      id="back-to-vote-btn"
+                      onClick={() => {
+                        setViewAllResults(false);
+                      }}
+                      className="w-full bg-white hover:bg-zinc-50 text-zinc-800 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all duration-300 shadow-md ring-1 ring-zinc-200 hover:ring-zinc-300 active:scale-[0.99]"
+                    >
+                      <ChevronDown className="w-5 h-5 text-zinc-500 rotate-180" />
+                      <span>{t.backToVote}</span>
                     </button>
                   )}
                   
@@ -989,13 +1009,21 @@ export default function App() {
                 <div className="w-full mb-8 flex flex-col gap-4">
                    <AdsterraNativeBanner />
                    
-                   <div className="w-full h-32 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/60 rounded-3xl flex items-center justify-center shadow-sm overflow-hidden relative cursor-pointer hover:shadow-md transition-all duration-300 group">
+                   <div 
+                     onClick={() => {
+                       const redirectUrl = pollData.adRedirectUrl || activePollData?.adRedirectUrl;
+                       if (redirectUrl) {
+                         window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+                       }
+                     }}
+                     className={`w-full h-32 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/60 rounded-3xl flex items-center justify-center shadow-sm overflow-hidden relative ${(pollData.adRedirectUrl || activePollData?.adRedirectUrl) ? 'cursor-pointer hover:shadow-md hover:border-amber-300' : ''} transition-all duration-300 group`}
+                   >
                      {pollData.bannerAdUrl ? (
                         <LazyImage src={pollData.bannerAdUrl} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt="Banner Ad" />
                      ) : (
                        <div className="flex flex-col items-center gap-2 text-amber-600">
                          <Megaphone className="w-8 h-8 opacity-80" />
-                         <h3 className="text-xl font-display font-bold">{pollData.bannerAdText}</h3>
+                         <h3 className="text-xl font-display font-bold">{pollData.bannerAdText || t.advertisement}</h3>
                        </div>
                      )}
                    </div>

@@ -24,6 +24,7 @@ export interface TranslationStrings {
   languageName: string;
   alreadyVotedTitle: string;
   alreadyVotedMsg: string;
+  backToVote: string;
 }
 
 export const languages: { code: Language; label: string; name: string }[] = [
@@ -59,6 +60,7 @@ export const translations: Record<Language, TranslationStrings> = {
     languageName: "ಕನ್ನಡ",
     alreadyVotedTitle: "ಈಗಾಗಲೇ ಮತ ಚಲಾಯಿಸಲಾಗಿದೆ",
     alreadyVotedMsg: "ಈ ಸಾಧನ/ನೆಟ್‌ವರ್ಕ್‌ನಿಂದ ಈಗಾಗಲೇ ಮತ ದಾಖಲಾಗಿದೆ.",
+    backToVote: "ಮತದಾನಕ್ಕೆ ಹಿಂತಿರುಗಿ",
   },
   en: {
     question: "Question",
@@ -84,6 +86,7 @@ export const translations: Record<Language, TranslationStrings> = {
     languageName: "English",
     alreadyVotedTitle: "Already Voted",
     alreadyVotedMsg: "A vote has already been submitted from this device/network.",
+    backToVote: "Back to Voting",
   },
   hi: {
     question: "प्रश्न",
@@ -109,6 +112,7 @@ export const translations: Record<Language, TranslationStrings> = {
     languageName: "हिंदी",
     alreadyVotedTitle: "पहले ही वोट दे चुके हैं",
     alreadyVotedMsg: "इस डिवाइस/नेटवर्क से पहले ही एक वोट दिया जा चुका है।",
+    backToVote: "वोटिंग पर वापस जाएं",
   },
   te: {
     question: "ప్రశ్న",
@@ -134,6 +138,7 @@ export const translations: Record<Language, TranslationStrings> = {
     languageName: "తెలుగు",
     alreadyVotedTitle: "ఇప్పటికే ఓటు వేశారు",
     alreadyVotedMsg: "ఈ పరికరం/నెట్‌వర్క్ నుండి ఇప్పటికే ఒక ఓటు సమర్పించబడింది.",
+    backToVote: "ఓటింగ్‌కు తిరిగి వెళ్లండి",
   },
   ta: {
     question: "கேள்வி",
@@ -159,5 +164,6 @@ export const translations: Record<Language, TranslationStrings> = {
     languageName: "தமிழ்",
     alreadyVotedTitle: "ஏற்கனவே வாக்களிக்கப்பட்டுள்ளது",
     alreadyVotedMsg: "இந்த சாதனத்திலிருந்து ஏற்கனவே ஒரு வாக்கு சமர்ப்பிக்கப்பட்டுள்ளது.",
+    backToVote: "வாக்களிப்பிற்குத் திரும்பு",
   }
 };
