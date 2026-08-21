@@ -19,6 +19,22 @@
     <!-- Preconnect for performance -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <script>
+      // Early intercept of cross-origin third-party script errors (e.g. ad networks, tracking)
+      window.onerror = function (msg, url, lineNo, columnNo, error) {
+        if (msg === 'Script error.' || !url || (typeof msg === 'string' && msg.includes('Script error'))) {
+          // Suppress unhandled third party / cross-origin script errors
+          return true;
+        }
+        return false;
+      };
+      window.addEventListener('unhandledrejection', function (event) {
+        var reason = event.reason ? (event.reason.message || String(event.reason)) : '';
+        if (reason.indexOf('Script error') !== -1 || reason.indexOf('Failed to fetch') !== -1) {
+          event.preventDefault();
+        }
+      });
+    </script>
     <style>
       .app-loader {
         display: flex;

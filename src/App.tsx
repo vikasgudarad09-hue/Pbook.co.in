@@ -80,18 +80,26 @@ function AdsterraNativeBanner({ className = "" }: { className?: string }) {
     // Reset container contents to prevent duplicate elements on re-render
     container.innerHTML = '';
 
-    const div = document.createElement('div');
-    div.id = 'container-cde1c28640b954e72a9619c23e223fa9';
-    container.appendChild(div);
+    try {
+      const div = document.createElement('div');
+      div.id = 'container-cde1c28640b954e72a9619c23e223fa9';
+      container.appendChild(div);
 
-    const script = document.createElement('script');
-    script.src = 'https://pl30825247.effectivecpmnetwork.com/cde1c28640b954e72a9619c23e223fa9/invoke.js';
-    script.async = true;
-    script.setAttribute('data-cfasync', 'false');
-    script.onerror = () => {
-      console.warn('Sponsored ad network script blocked or failed to load.');
-    };
-    container.appendChild(script);
+      const script = document.createElement('script');
+      script.src = 'https://pl30825247.effectivecpmnetwork.com/cde1c28640b954e72a9619c23e223fa9/invoke.js';
+      script.async = true;
+      script.setAttribute('data-cfasync', 'false');
+      script.crossOrigin = 'anonymous';
+      script.onerror = (e: Event | string) => {
+        if (typeof e === 'object' && e && 'stopPropagation' in e) {
+          (e as Event).stopPropagation();
+        }
+        console.warn('Sponsored ad network script blocked or unavailable.');
+      };
+      container.appendChild(script);
+    } catch (err) {
+      console.warn('Sponsored banner mount issue:', err);
+    }
 
     return () => {
       if (container) {
