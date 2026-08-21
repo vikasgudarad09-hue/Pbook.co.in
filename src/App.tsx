@@ -115,6 +115,7 @@ export default function App() {
   const [pollData, setPollData] = useState<PollData | null>(null);
   
   const [showAd, setShowAd] = useState(false);
+  const [isSubmittingVote, setIsSubmittingVote] = useState(false);
   const [userIp, setUserIp] = useState<string | null>(null);
   const [isVerifyingIp, setIsVerifyingIp] = useState(true);
 
@@ -332,6 +333,47 @@ export default function App() {
     };
   }, [userIp, activePollData?.questions?.map(q => q.id).join(',')]);
 
+  // Promise-based helper to ensure ad container, scripts, and media are preloaded and ready before display
+  const prepareAndDisplayInterstitialAd = async (): Promise<boolean> => {
+    const hasAdContent = Boolean(
+      activePollData?.interstitialAdUrl?.trim() || 
+      activePollData?.interstitialAdText?.trim() ||
+      activePollData?.adRedirectUrl?.trim()
+    );
+
+    if (!hasAdContent) {
+      return false;
+    }
+
+    // Wrap ad display readiness in a Promise-based wait
+    await new Promise<void>((resolve) => {
+      const waitTasks: Promise<any>[] = [];
+
+      // 1. Preload image asset if present to prevent visual layout shifts
+      const adImgUrl = activePollData?.interstitialAdUrl?.trim();
+      if (adImgUrl) {
+        const imgPromise = new Promise((resolveImg) => {
+          const img = new Image();
+          img.onload = () => resolveImg(true);
+          img.onerror = () => resolveImg(false);
+          img.src = adImgUrl;
+          setTimeout(resolveImg, 1000); // 1s safety timeout
+        });
+        waitTasks.push(imgPromise);
+      }
+
+      // 2. Optical stabilization buffer ensuring DOM container & ad state are fully ready
+      const bufferPromise = new Promise((resolveBuffer) => setTimeout(resolveBuffer, 450));
+      waitTasks.push(bufferPromise);
+
+      Promise.all(waitTasks).then(() => resolve());
+    });
+
+    setTimeLeft(5);
+    setShowAd(true);
+    return true;
+  };
+
   const handleVoteClick = async (questionId: string, overrideCandidateId?: string) => {
     const candidateId = overrideCandidateId || selectedCandidates[questionId];
     if (!candidateId || !activePollData || votedQuestions[questionId]) return;
@@ -346,128 +388,133 @@ export default function App() {
       return;
     }
 
-    const apiUrl = import.meta.env.VITE_API_URL || '';
-
-    // 1. Pre-check against Express server backend
+    setIsSubmittingVote(true);
     try {
-      const checkRes = await fetch(`${apiUrl}/api/check-voted?questionId=${questionId}&userIp=${userIp}`);
-      if (checkRes.ok) {
-        const checkData = await checkRes.json();
-        if (checkData && checkData.voted) {
-          setVotedQuestions(prev => {
-            const next = { ...prev, [questionId]: true };
-            try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (e) {}
-            return next;
-          });
-          alert(t.alreadyVotedMsg || "A vote has already been submitted from this device/network.");
-          return;
-        }
-      }
-    } catch (err) {}
+      const apiUrl = import.meta.env.VITE_API_URL || '';
 
-    // 2. Pre-check against Firebase if configured
-    if (isFirebaseConfigured && db) {
+      // 1. Pre-check against Express server backend
       try {
-        const ipRef = doc(db, 'polls', `main_poll/ip_records/${questionId}_${userIp}`);
-        const existingVoteSnap = await getDoc(ipRef);
-        if (existingVoteSnap && existingVoteSnap.exists()) {
-          setVotedQuestions(prev => {
-            const next = { ...prev, [questionId]: true };
-            try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (e) {}
-            return next;
-          });
-          alert(t.alreadyVotedMsg || "A vote has already been submitted from this device/network.");
-          return;
+        const checkRes = await fetch(`${apiUrl}/api/check-voted?questionId=${questionId}&userIp=${userIp}`);
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          if (checkData && checkData.voted) {
+            setVotedQuestions(prev => {
+              const next = { ...prev, [questionId]: true };
+              try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (e) {}
+              return next;
+            });
+            alert(t.alreadyVotedMsg || "A vote has already been submitted from this device/network.");
+            return;
+          }
         }
       } catch (err) {}
-    }
 
-    // 3. Record vote on Express REST backend first
-    let voteSuccess = false;
-    try {
-      const res = await fetch(`${apiUrl}/api/vote`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questionId, candidateId, userIp })
-      });
-
-      if (res.status === 403) {
-        setVotedQuestions(prev => {
-          const next = { ...prev, [questionId]: true };
-          try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (e) {}
-          return next;
-        });
-        alert(t.alreadyVotedMsg || "A vote has already been submitted from this device/network.");
-        return;
+      // 2. Pre-check against Firebase if configured
+      if (isFirebaseConfigured && db) {
+        try {
+          const ipRef = doc(db, 'polls', `main_poll/ip_records/${questionId}_${userIp}`);
+          const existingVoteSnap = await getDoc(ipRef);
+          if (existingVoteSnap && existingVoteSnap.exists()) {
+            setVotedQuestions(prev => {
+              const next = { ...prev, [questionId]: true };
+              try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (e) {}
+              return next;
+            });
+            alert(t.alreadyVotedMsg || "A vote has already been submitted from this device/network.");
+            return;
+          }
+        } catch (err) {}
       }
 
-      if (res.ok) {
-        const resData = await res.json();
-        if (resData && resData.data) {
-          setPollData(resData.data);
-          voteSuccess = true;
-        }
-      }
-    } catch (err) {
-      console.warn('REST API vote error:', err);
-    }
-
-    // 4. Record vote on Firebase if configured
-    if (isFirebaseConfigured && db) {
+      // 3. Record vote on Express REST backend first
+      let voteSuccess = false;
       try {
-        const ipRef = doc(db, 'polls', `main_poll/ip_records/${questionId}_${userIp}`);
-        const pollRef = doc(db, 'polls', 'main_poll');
-        await runTransaction(db, async (transaction) => {
-          const ipDoc = await transaction.get(ipRef);
-          if (ipDoc.exists()) {
-            throw new Error("ALREADY_VOTED");
-          }
-
-          const pollDoc = await transaction.get(pollRef);
-          if (pollDoc.exists()) {
-            const currentData = pollDoc.data() as PollData;
-            const updatedQuestions = JSON.parse(JSON.stringify(currentData.questions || []));
-            const qIndex = updatedQuestions.findIndex((q: any) => q.id === questionId);
-            if (qIndex !== -1) {
-              const candidateIndex = updatedQuestions[qIndex].candidates.findIndex((c: any) => c.id === candidateId);
-              if (candidateIndex !== -1) {
-                updatedQuestions[qIndex].candidates[candidateIndex].votes = (updatedQuestions[qIndex].candidates[candidateIndex].votes || 0) + 1;
-                transaction.update(pollRef, { questions: updatedQuestions });
-                transaction.set(ipRef, { timestamp: Date.now(), userIp });
-              }
-            }
-          }
+        const res = await fetch(`${apiUrl}/api/vote`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ questionId, candidateId, userIp })
         });
-        voteSuccess = true;
-      } catch (e: any) {
-        if (e?.message === "ALREADY_VOTED") {
+
+        if (res.status === 403) {
           setVotedQuestions(prev => {
             const next = { ...prev, [questionId]: true };
-            try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (err) {}
+            try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (e) {}
             return next;
           });
           alert(t.alreadyVotedMsg || "A vote has already been submitted from this device/network.");
           return;
         }
+
+        if (res.ok) {
+          const resData = await res.json();
+          if (resData && resData.data) {
+            setPollData(resData.data);
+            voteSuccess = true;
+          }
+        }
+      } catch (err) {
+        console.warn('REST API vote error:', err);
       }
-    } else {
-      // If Firebase is not configured, Express vote succeeding is sufficient
-      voteSuccess = true;
-    }
 
-    if (voteSuccess) {
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-
-      setVotedQuestions(prev => {
-        const next = { ...prev, [questionId]: true };
+      // 4. Record vote on Firebase if configured
+      if (isFirebaseConfigured && db) {
         try {
-          localStorage.setItem('votedQuestions', JSON.stringify(next));
-        } catch (e) {}
-        return next;
-      });
+          const ipRef = doc(db, 'polls', `main_poll/ip_records/${questionId}_${userIp}`);
+          const pollRef = doc(db, 'polls', 'main_poll');
+          await runTransaction(db, async (transaction) => {
+            const ipDoc = await transaction.get(ipRef);
+            if (ipDoc.exists()) {
+              throw new Error("ALREADY_VOTED");
+            }
 
-      // Direct vote completed view without blocking overlay
-      /* Interstitial overlay skipped for better user retention */
+            const pollDoc = await transaction.get(pollRef);
+            if (pollDoc.exists()) {
+              const currentData = pollDoc.data() as PollData;
+              const updatedQuestions = JSON.parse(JSON.stringify(currentData.questions || []));
+              const qIndex = updatedQuestions.findIndex((q: any) => q.id === questionId);
+              if (qIndex !== -1) {
+                const candidateIndex = updatedQuestions[qIndex].candidates.findIndex((c: any) => c.id === candidateId);
+                if (candidateIndex !== -1) {
+                  updatedQuestions[qIndex].candidates[candidateIndex].votes = (updatedQuestions[qIndex].candidates[candidateIndex].votes || 0) + 1;
+                  transaction.update(pollRef, { questions: updatedQuestions });
+                  transaction.set(ipRef, { timestamp: Date.now(), userIp });
+                }
+              }
+            }
+          });
+          voteSuccess = true;
+        } catch (e: any) {
+          if (e?.message === "ALREADY_VOTED") {
+            setVotedQuestions(prev => {
+              const next = { ...prev, [questionId]: true };
+              try { localStorage.setItem('votedQuestions', JSON.stringify(next)); } catch (err) {}
+              return next;
+            });
+            alert(t.alreadyVotedMsg || "A vote has already been submitted from this device/network.");
+            return;
+          }
+        }
+      } else {
+        // If Firebase is not configured, Express vote succeeding is sufficient
+        voteSuccess = true;
+      }
+
+      if (voteSuccess) {
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+
+        setVotedQuestions(prev => {
+          const next = { ...prev, [questionId]: true };
+          try {
+            localStorage.setItem('votedQuestions', JSON.stringify(next));
+          } catch (e) {}
+          return next;
+        });
+
+        // Wrap ad display in a Promise-based wait to ensure the ad container is ready before revealing
+        await prepareAndDisplayInterstitialAd();
+      }
+    } finally {
+      setIsSubmittingVote(false);
     }
   };
 
@@ -518,28 +565,60 @@ export default function App() {
         {showAd && (
           <motion.div 
               key="ad-view"
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 50 }}
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.3 }}
-              className="fixed inset-0 z-[150] flex flex-col bg-white"
+              className="fixed inset-0 z-[150] flex flex-col bg-zinc-900 text-white"
             >
-            <div className="flex-grow p-6 flex flex-col items-center justify-center">
-               <div className="w-full max-w-2xl aspect-[4/3] bg-[#fff9e6] border-2 border-[#ffcc80] rounded-2xl flex flex-col items-center justify-center text-center p-6 shadow-sm overflow-hidden relative">
+            <div className="flex justify-between items-center px-6 py-4 bg-black/40 border-b border-white/10 shrink-0">
+              <span className="text-xs uppercase font-extrabold tracking-widest text-amber-400 bg-amber-400/10 px-3 py-1 rounded-full border border-amber-400/20">
+                {t.advertisement}
+              </span>
+              <button 
+                onClick={() => {
+                  if (activePollData?.adRedirectUrl) {
+                    window.location.href = activePollData.adRedirectUrl;
+                  } else {
+                    setShowAd(false);
+                  }
+                }}
+                className="text-xs font-bold text-zinc-300 hover:text-white bg-white/10 hover:bg-white/20 px-4 py-1.5 rounded-full transition-colors flex items-center gap-1.5"
+              >
+                <span>View Results</span>
+                <ChevronDown className="w-3.5 h-3.5 -rotate-90" />
+              </button>
+            </div>
+
+            <div className="flex-grow p-4 sm:p-8 flex flex-col items-center justify-center overflow-auto">
+               <div 
+                 onClick={() => {
+                   const redirectUrl = pollData?.adRedirectUrl || activePollData?.adRedirectUrl;
+                   if (redirectUrl) {
+                     window.open(redirectUrl, '_blank', 'noopener,noreferrer');
+                   }
+                 }}
+                 className={`w-full max-w-2xl min-h-[320px] sm:min-h-[400px] bg-zinc-800/80 border border-white/10 rounded-3xl flex flex-col items-center justify-center text-center p-6 shadow-2xl overflow-hidden relative ${(pollData?.adRedirectUrl || activePollData?.adRedirectUrl) ? 'cursor-pointer hover:border-amber-400/50 transition-all' : ''}`}
+               >
                  {pollData.interstitialAdUrl ? (
-                    <LazyImage src={pollData.interstitialAdUrl} className="absolute inset-0 w-full h-full object-cover" alt="Ad" />
+                    <LazyImage src={pollData.interstitialAdUrl} className="absolute inset-0 w-full h-full object-contain sm:object-cover" alt="Ad" />
                  ) : (
-                   <>
-                     <Megaphone className="w-16 h-16 text-[#f57c00] mb-4 drop-shadow-sm" />
-                     <h3 className="text-3xl font-black text-[#f57c00] mb-2">Ad</h3>
-                     <p className="text-[#f57c00] font-medium max-w-[80%]">{pollData.interstitialAdText}</p>
-                   </>
+                   <div className="flex flex-col items-center justify-center p-6">
+                     <div className="w-20 h-20 rounded-full bg-amber-400/10 border border-amber-400/30 flex items-center justify-center mb-5 text-amber-400">
+                       <Megaphone className="w-10 h-10" />
+                     </div>
+                     <h3 className="text-2xl sm:text-3xl font-black text-amber-300 mb-3">{pollData.interstitialAdText || t.advertisement}</h3>
+                     {(pollData?.adRedirectUrl || activePollData?.adRedirectUrl) && (
+                       <span className="text-xs text-zinc-400 underline mt-2 font-medium">Click to learn more</span>
+                     )}
+                   </div>
                  )}
                </div>
             </div>
-            <div className="bg-[#e8f5e9] border-t-2 border-[#c8e6c9] p-4 flex items-center justify-center gap-2 text-[#2e7d32] font-medium shrink-0 shadow-inner pb-8">
-              <Clock className="w-5 h-5" />
-              Result will be shown in {timeLeft} seconds
+
+            <div className="bg-black/60 border-t border-white/10 p-4 sm:p-5 flex items-center justify-center gap-3 text-emerald-400 font-semibold shrink-0 shadow-inner">
+              <Clock className="w-5 h-5 animate-pulse text-emerald-400" />
+              <span className="text-sm sm:text-base">Result will be shown in <span className="font-bold text-white bg-emerald-500/20 px-2 py-0.5 rounded-lg border border-emerald-500/30">{timeLeft}</span> seconds</span>
             </div>
           </motion.div>
         )}
@@ -858,10 +937,10 @@ export default function App() {
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               onClick={() => setConfirmVoteData({ questionId: q.id, candidateId: selectedCandidate })}
-                              disabled={!selectedCandidate || isVerifyingIp}
-                              className={`mt-2 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all duration-300 ${!selectedCandidate || isVerifyingIp ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed shadow-none' : 'bg-[#1877F2] hover:bg-[#166FE5] text-white shadow-xl hover:shadow-2xl hover:-translate-y-1'}`}
+                              disabled={!selectedCandidate || isVerifyingIp || isSubmittingVote}
+                              className={`mt-2 py-4 px-6 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all duration-300 ${!selectedCandidate || isVerifyingIp || isSubmittingVote ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed shadow-none' : 'bg-[#1877F2] hover:bg-[#166FE5] text-white shadow-xl hover:shadow-2xl hover:-translate-y-1'}`}
                             >
-                              {isVerifyingIp ? (
+                              {isVerifyingIp || isSubmittingVote ? (
                                 <>
                                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-zinc-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1113,19 +1192,31 @@ export default function App() {
                 </p>
                 <div className="flex gap-3">
                   <button 
+                    disabled={isSubmittingVote}
                     onClick={() => setConfirmVoteData(null)}
-                    className="flex-1 py-3.5 px-4 rounded-xl font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-colors"
+                    className="flex-1 py-3.5 px-4 rounded-xl font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {t.cancel}
                   </button>
                   <button 
-                    onClick={() => {
-                      handleVoteClick(confirmVoteData.questionId, confirmVoteData.candidateId);
+                    disabled={isSubmittingVote}
+                    onClick={async () => {
+                      await handleVoteClick(confirmVoteData.questionId, confirmVoteData.candidateId);
                       setConfirmVoteData(null);
                     }}
-                    className="flex-1 py-3.5 px-4 rounded-xl font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] shadow-md hover:shadow-lg transition-all"
+                    className="flex-1 py-3.5 px-4 rounded-xl font-bold text-white bg-[#1877F2] hover:bg-[#166FE5] shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-not-allowed"
                   >
-                    {t.confirm}
+                    {isSubmittingVote ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>{t.checking}</span>
+                      </>
+                    ) : (
+                      t.confirm
+                    )}
                   </button>
                 </div>
               </motion.div>
